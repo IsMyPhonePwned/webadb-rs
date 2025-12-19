@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Rust WebADB Examples</title>
+    <style>
+        body {
+            font-family: 'Monaco', 'Courier New', monospace;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        
+        h1 { color: #4ec9b0; }
+        h2 { color: #569cd6; }
+        
+        .example {
+            background: #252526;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+            border-left: 4px solid #569cd6;
+        }
+        
+        button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        
+        button:hover { background: #005a9e; }
+        button:disabled { background: #3e3e3e; cursor: not-allowed; }
+        
+        pre {
+            background: #1e1e1e;
+            padding: 15px;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+        
+        .output {
+            background: #1e1e1e;
+            padding: 15px;
+            border-radius: 3px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        
+        .success { color: #4ec9b0; }
+        .error { color: #f48771; }
+        .warning { color: #dcdcaa; }
+    </style>
+</head>
+<body>
+    <h1>🦀 Advanced Rust WebADB Examples</h1>
+    
+    <div class="example">
+        <h2>1. Device Information</h2>
+        <p>Get comprehensive device information</p>
+        <button id="deviceInfoBtn">Get Device Info</button>
+        <div id="deviceInfoOutput" class="output"></div>
+    </div>
+    
+    <div class="example">
+        <h2>2. System Properties Analysis</h2>
+        <p>Extract and analyze system properties</p>
+        <button id="propsBtn">Analyze Properties</button>
+        <div id="propsOutput" class="output"></div>
+    </div>
+    
+    <div class="example">
+        <h2>3. Package Management</h2>
+        <p>List and manage installed packages</p>
+        <button id="packagesBtn">List All Packages</button>
+        <button id="systemPackagesBtn">System Packages Only</button>
+        <button id="userPackagesBtn">User Packages Only</button>
+        <div id="packagesOutput" class="output"></div>
+    </div>
+    
+    <div class="example">
+        <h2>4. Process Monitoring</h2>
+        <p>Monitor running processes</p>
+        <button id="processesBtn">List Processes</button>
+        <button id="topBtn">Top Processes (by memory)</button>
+        <div id="processesOutput" class="output"></div>
+    </div>
+    
+    <div class="example">
+        <h2>5. Network Information</h2>
+        <p>View network configuration and status</p>
+        <button id="ipBtn">IP Configuration</button>
+        <button id="netstatBtn">Network Connections</button>
+        <div id="networkOutput" class="output"></div>
+    </div>
+    
+    <div class="example">
+        <h2>6. Storage Analysis</h2>
+        <p>Analyze disk usage and storage</p>
+        <button id="storageBtn">Storage Info</button>
+        <button id="largeFilesBtn">Find Large Files</button>
+        <div id="storageOutput" class="output"></div>
+    </div>
+    
+    <div class="example">
+        <h2>7. System Performance</h2>
+        <p>Monitor CPU, memory, and system load</p>
+        <button id="cpuInfoBtn">CPU Info</button>
+        <button id="memInfoBtn">Memory Info</button>
+        <button id="uptimeBtn">System Uptime</button>
+        <div id="perfOutput" class="output"></div>
+    </div>
+    
+    <div class="example">
+        <h2>8. Screen Information</h2>
+        <p>Get display and screen information</p>
+        <button id="screenBtn">Screen Details</button>
+        <button id="densityBtn">Display Density</button>
+        <div id="screenOutput" class="output"></div>
+    </div>
+
+    <script type="module">
+        import init, { Adb, generate_keypair, has_keypair } from '../pkg/webadb_rs.js';
+
+        let adb = null;
+
+        async function main() {
+            await init();
+            
+            if (!await has_keypair()) {
+                await generate_keypair();
+            }
+
+            adb = new Adb();
+
+            // Connect first
+            try {
+                await adb.connect();
+                console.log('Connected to device');
+                enableButtons();
+            } catch (error) {
+                alert('Please connect a device: ' + error);
+                return;
+            }
+
+            // Setup event listeners
+            setupExamples();
+        }
+
+        function setupExamples() {
+            // Device Info
+            document.getElementById('deviceInfoBtn').addEventListener('click', async () => {
+                const output = document.getElementById('deviceInfoOutput');
+                try {
+                    const props = await adb.get_properties();
+                    output.innerHTML = formatDeviceInfo(props);
+                } catch (error) {
+                    output.innerHTML = `<span class="error">Error: ${error}</span>`;
+                }
+            });
+
+            // Properties Analysis
+            document.getElementById('propsBtn').addEventListener('click', async () => {
+                const output = document.getElementById('propsOutput');
+                try {
+                    const props = await adb.get_properties();
+                    output.innerHTML = formatPropertiesAnalysis(props);
+                } catch (error) {
+                    output.innerHTML = `<span class="error">Error: ${error}</span>`;
+                }
+            });
+
+            // Packages
+            document.getElementById('packagesBtn').addEventListener('click', () => 
+                listPackages('pm list packages', 'packagesOutput'));
+            document.getElementById('systemPackagesBtn').addEventListener('click', () => 
+                listPackages('pm list packages -s', 'packagesOutput'));
+            document.getElementById('userPackagesBtn').addEventListener('click', () => 
+                listPackages('pm list packages -3', 'packagesOutput'));
+
+            // Processes
+            document.getElementById('processesBtn').addEventListener('click', () => 
+                runCommand('ps -A', 'processesOutput'));
+            document.getElementById('topBtn').addEventListener('click', async () => {
+                const output = document.getElementById('processesOutput');
+                try {
+                    const result = await adb.shell('top -n 1 -m 10');
+                    output.textContent = result;
+                } catch (error) {
+                    output.innerHTML = `<span class="error">Error: ${error}</span>`;
+                }
+            });
+
+            // Network
+            document.getElementById('ipBtn').addEventListener('click', () => 
+                runCommand('ip addr show', 'networkOutput'));
+            document.getElementById('netstatBtn').addEventListener('click', () => 
+                runCommand('netstat -tulpn 2>/dev/null || ss -tulpn', 'networkOutput'));
+
+            // Storage
+            document.getElementById('storageBtn').addEventListener('click', () => 
+                runCommand('df -h', 'storageOutput'));
+            document.getElementById('largeFilesBtn').addEventListener('click', () => 
+                runCommand('du -h /sdcard | sort -rh | head -20', 'storageOutput'));
+
+            // Performance
+            document.getElementById('cpuInfoBtn').addEventListener('click', () => 
+                runCommand('cat /proc/cpuinfo', 'perfOutput'));
+            document.getElementById('memInfoBtn').addEventListener('click', () => 
+                runCommand('cat /proc/meminfo', 'perfOutput'));
+            document.getElementById('uptimeBtn').addEventListener('click', () => 
+                runCommand('uptime', 'perfOutput'));
+
+            // Screen
+            document.getElementById('screenBtn').addEventListener('click', async () => {
+                const output = document.getElementById('screenOutput');
+                try {
+                    const props = await adb.get_properties();
+                    output.innerHTML = formatScreenInfo(props);
+                } catch (error) {
+                    output.innerHTML = `<span class="error">Error: ${error}</span>`;
+                }
+            });
+            document.getElementById('densityBtn').addEventListener('click', () => 
+                runCommand('wm density && wm size', 'screenOutput'));
+        }
+
+        async function runCommand(cmd, outputId) {
+            const output = document.getElementById(outputId);
+            output.textContent = 'Running...';
+            try {
+                const result = await adb.shell(cmd);
+                output.textContent = result;
+            } catch (error) {
+                output.innerHTML = `<span class="error">Error: ${error}</span>`;
+            }
+        }
+
+        async function listPackages(cmd, outputId) {
+            const output = document.getElementById(outputId);
+            output.textContent = 'Loading packages...';
+            try {
+                const result = await adb.shell(cmd);
+                const packages = result.split('\n')
+                    .filter(line => line.startsWith('package:'))
+                    .map(line => line.replace('package:', ''))
+                    .sort();
+                
+                output.innerHTML = `<span class="success">Found ${packages.length} packages:</span>\n` 
+                    + packages.join('\n');
+            } catch (error) {
+                output.innerHTML = `<span class="error">Error: ${error}</span>`;
+            }
+        }
+
+        function formatDeviceInfo(props) {
+            return `
+<span class="success">Device Information:</span>
+────────────────────────────────────
+Manufacturer: ${props['ro.product.manufacturer'] || 'Unknown'}
+Brand:        ${props['ro.product.brand'] || 'Unknown'}
+Model:        ${props['ro.product.model'] || 'Unknown'}
+Device:       ${props['ro.product.device'] || 'Unknown'}
+Board:        ${props['ro.product.board'] || 'Unknown'}
+────────────────────────────────────
+Android:      ${props['ro.build.version.release'] || 'Unknown'}
+SDK:          ${props['ro.build.version.sdk'] || 'Unknown'}
+Build:        ${props['ro.build.id'] || 'Unknown'}
+Security:     ${props['ro.build.version.security_patch'] || 'Unknown'}
+────────────────────────────────────
+Serial:       ${props['ro.serialno'] || 'Unknown'}
+IMEI:         ${props['ro.boot.serialno'] || 'Unknown'}
+            `.trim();
+        }
+
+        function formatPropertiesAnalysis(props) {
+            const categories = {
+                'Build': Object.entries(props).filter(([k]) => k.startsWith('ro.build.')),
+                'Product': Object.entries(props).filter(([k]) => k.startsWith('ro.product.')),
+                'System': Object.entries(props).filter(([k]) => k.startsWith('ro.system.')),
+                'Hardware': Object.entries(props).filter(([k]) => k.includes('hardware')),
+            };
+
+            let html = '<span class="success">Properties by Category:</span>\n\n';
+            
+            for (const [category, entries] of Object.entries(categories)) {
+                html += `<span class="warning">${category} (${entries.length}):</span>\n`;
+                entries.slice(0, 5).forEach(([key, value]) => {
+                    html += `  ${key}: ${value}\n`;
+                });
+                if (entries.length > 5) {
+                    html += `  ... and ${entries.length - 5} more\n`;
+                }
+                html += '\n';
+            }
+
+            return html;
+        }
+
+        function formatScreenInfo(props) {
+            const width = props['ro.sf.lcd_density'] || 'Unknown';
+            const density = props['ro.sf.lcd_density'] || 'Unknown';
+            
+            return `
+<span class="success">Screen Information:</span>
+────────────────────────────────────
+Density:      ${density} dpi
+LCD Density:  ${props['ro.sf.lcd_density'] || 'Unknown'}
+────────────────────────────────────
+Use 'Display Density' button for current runtime values
+            `.trim();
+        }
+
+        function enableButtons() {
+            document.querySelectorAll('button').forEach(btn => {
+                btn.disabled = false;
+            });
+        }
+
+        main().catch(console.error);
+    </script>
+</body>
+</html>

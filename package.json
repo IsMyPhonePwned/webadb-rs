@@ -1,0 +1,23 @@
+{
+  "name": "webadb-rs",
+  "version": "0.1.0",
+  "description": "Android Debug Bridge implementation for WebUSB in Rust/WASM",
+  "scripts": {
+    "build": "bash build.sh release",
+    "build:dev": "bash build.sh dev",
+    "serve": "python3 -m http.server 8080",
+    "dev": "npm run build:dev && npm run serve"
+  },
+  "keywords": [
+    "adb",
+    "android",
+    "webusb",
+    "rust",
+    "wasm",
+    "debug-bridge"
+  ],
+  "author": "ping2a",
+  "license": "Apache-2.0",
+  "devDependencies": {},
+  "dependencies": {}
+}

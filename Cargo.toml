@@ -1,0 +1,70 @@
+[package]
+name = "webadb-rs"
+version = "0.1.0"
+edition = "2021"
+authors = ["ping2a"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# WebAssembly bindings
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+
+# WebUSB support
+web-sys = { version = "0.3", features = [
+    "console",
+    "Window",
+    "Navigator",
+    "Storage",
+    "Usb",
+    "UsbDevice",
+    "UsbConfiguration",
+    "UsbInterface",
+    "UsbAlternateInterface",
+    "UsbEndpoint",
+    "UsbInTransferResult",
+    "UsbOutTransferResult",
+    "UsbControlTransferParameters",
+    "UsbDirection",
+    "UsbRequestType",
+    "UsbRecipient",
+    "UsbTransferStatus",
+    "UsbDeviceFilter",
+    "UsbDeviceRequestOptions",
+] }
+
+# Async runtime for WASM
+futures = "0.3"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde-wasm-bindgen = "0.6"
+
+# Error handling
+thiserror = "2.0"
+
+# Crypto for authentication
+rsa = { version = "0.9", features = ["sha1", "pem"] }
+sha1 = "0.10"
+base64 = "0.22"
+getrandom = { version = "0.2.16", features = ["js"] }
+
+# Utilities
+log = "0.4"
+console_error_panic_hook = "0.1"
+console_log = "1.0"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[profile.release]
+opt-level = "s"  # Optimize for size
+lto = true       # Link-time optimization
+codegen-units = 1
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-Os", "--enable-mutable-globals"]

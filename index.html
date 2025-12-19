@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rust WebADB - Android Debug Bridge in Browser</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+
+        .status.disconnected {
+            background: #fee;
+            color: #c33;
+        }
+
+        .status.connected {
+            background: #efe;
+            color: #3c3;
+        }
+
+        .status.connecting {
+            background: #ffc;
+            color: #cc6;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .device-info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            display: none;
+        }
+
+        .device-info.show {
+            display: block;
+        }
+
+        .device-info h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .device-info p {
+            margin: 5px 0;
+            color: #666;
+        }
+
+        .command-section {
+            margin-top: 30px;
+        }
+
+        .command-input {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .output {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .output:empty::before {
+            content: 'Command output will appear here...';
+            color: #666;
+        }
+
+        .quick-commands {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .quick-commands button {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            display: none;
+        }
+
+        .error.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Rust WebADB</h1>
+        <p class="subtitle">Android Debug Bridge in your browser using WebUSB</p>
+
+        <div id="status" class="status disconnected">
+            Status: Disconnected
+        </div>
+
+        <div id="error" class="error"></div>
+
+        <div class="controls">
+            <button id="connectBtn">Connect to Device</button>
+            <button id="disconnectBtn" disabled>Disconnect</button>
+            <button id="propertiesBtn" disabled>Get Properties</button>
+        </div>
+
+        <div style="margin: 20px 0; padding: 15px; background: #e8f4f8; border-radius: 10px;">
+            <p style="margin-bottom: 10px;"><strong>📱 Additional Tools:</strong></p>
+            <a href="bugreport.html" style="display: inline-block; padding: 10px 20px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; text-decoration: none; border-radius: 8px; margin-right: 10px;">Bugreport & Diagnostics</a>
+            <a href="advanced.html" style="display: inline-block; padding: 10px 20px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; text-decoration: none; border-radius: 8px;">Advanced Examples</a>
+        </div>
+
+        <div id="deviceInfo" class="device-info">
+            <h3>Device Information</h3>
+            <p><strong>Manufacturer:</strong> <span id="manufacturer">-</span></p>
+            <p><strong>Product:</strong> <span id="product">-</span></p>
+            <p><strong>Serial:</strong> <span id="serial">-</span></p>
+            <p><strong>Vendor ID:</strong> <span id="vendorId">-</span></p>
+            <p><strong>Product ID:</strong> <span id="productId">-</span></p>
+        </div>
+
+        <div class="command-section">
+            <h3>Execute Shell Command</h3>
+            
+            <div class="quick-commands">
+                <button class="quick-cmd" data-cmd="uname -a">System Info</button>
+                <button class="quick-cmd" data-cmd="ls /sdcard">List SD Card</button>
+                <button class="quick-cmd" data-cmd="getprop ro.product.model">Device Model</button>
+                <button class="quick-cmd" data-cmd="df -h">Disk Usage</button>
+                <button class="quick-cmd" data-cmd="pm list packages">List Packages</button>
+            </div>
+
+            <div class="command-input">
+                <input type="text" id="commandInput" placeholder="Enter shell command (e.g., ls -la)" disabled>
+                <button id="executeBtn" disabled>Execute</button>
+            </div>
+
+            <div id="output" class="output"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import init, { Adb, generate_keypair, has_keypair } from './pkg/webadb_rs.js';
+
+        let adb = null;
+
+        async function main() {
+            // Initialize WASM
+            await init();
+
+            // Ensure we have a keypair
+            if (!await has_keypair()) {
+                console.log('Generating keypair...');
+                await generate_keypair();
+            }
+
+            // Create ADB instance
+            adb = new Adb();
+
+            // Setup event listeners
+            document.getElementById('connectBtn').addEventListener('click', connect);
+            document.getElementById('disconnectBtn').addEventListener('click', disconnect);
+            document.getElementById('executeBtn').addEventListener('click', executeCommand);
+            document.getElementById('propertiesBtn').addEventListener('click', getProperties);
+            
+            // Enter key to execute
+            document.getElementById('commandInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    executeCommand();
+                }
+            });
+
+            // Quick commands
+            document.querySelectorAll('.quick-cmd').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const cmd = btn.dataset.cmd;
+                    document.getElementById('commandInput').value = cmd;
+                    if (adb.is_connected()) {
+                        executeCommand();
+                    }
+                });
+            });
+        }
+
+        async function connect() {
+            try {
+                updateStatus('connecting', 'Connecting...');
+                hideError();
+
+                const deviceInfo = await adb.connect();
+                
+                updateStatus('connected', 'Connected');
+                displayDeviceInfo(deviceInfo);
+                
+                document.getElementById('connectBtn').disabled = true;
+                document.getElementById('disconnectBtn').disabled = false;
+                document.getElementById('executeBtn').disabled = false;
+                document.getElementById('commandInput').disabled = false;
+                document.getElementById('propertiesBtn').disabled = false;
+                
+                document.querySelectorAll('.quick-cmd').forEach(btn => {
+                    btn.disabled = false;
+                });
+
+            } catch (error) {
+                console.error('Connection error:', error);
+                showError('Failed to connect: ' + error);
+                updateStatus('disconnected', 'Disconnected');
+            }
+        }
+
+        async function disconnect() {
+            try {
+                await adb.disconnect();
+                updateStatus('disconnected', 'Disconnected');
+                
+                document.getElementById('connectBtn').disabled = false;
+                document.getElementById('disconnectBtn').disabled = true;
+                document.getElementById('executeBtn').disabled = true;
+                document.getElementById('commandInput').disabled = true;
+                document.getElementById('propertiesBtn').disabled = true;
+                document.getElementById('deviceInfo').classList.remove('show');
+                
+                document.querySelectorAll('.quick-cmd').forEach(btn => {
+                    btn.disabled = true;
+                });
+
+            } catch (error) {
+                console.error('Disconnect error:', error);
+                showError('Failed to disconnect: ' + error);
+            }
+        }
+
+        async function executeCommand() {
+            const input = document.getElementById('commandInput');
+            const output = document.getElementById('output');
+            const command = input.value.trim();
+
+            if (!command) return;
+
+            try {
+                output.textContent = 'Executing...';
+                const result = await adb.shell(command);
+                output.textContent = result || '(no output)';
+            } catch (error) {
+                output.textContent = 'Error: ' + error;
+                console.error('Command error:', error);
+            }
+        }
+
+        async function getProperties() {
+            const output = document.getElementById('output');
+            
+            try {
+                output.textContent = 'Getting properties...';
+                const props = await adb.get_properties();
+                
+                let text = '';
+                for (const [key, value] of Object.entries(props)) {
+                    text += `[${key}]: [${value}]\n`;
+                }
+                
+                output.textContent = text || '(no properties)';
+            } catch (error) {
+                output.textContent = 'Error: ' + error;
+                console.error('Properties error:', error);
+            }
+        }
+
+        function updateStatus(state, text) {
+            const statusEl = document.getElementById('status');
+            statusEl.className = 'status ' + state;
+            statusEl.textContent = 'Status: ' + text;
+        }
+
+        function displayDeviceInfo(info) {
+            document.getElementById('manufacturer').textContent = info.manufacturer || 'Unknown';
+            document.getElementById('product').textContent = info.product || 'Unknown';
+            document.getElementById('serial').textContent = info.serial || 'Unknown';
+            document.getElementById('vendorId').textContent = '0x' + info.vendor_id.toString(16);
+            document.getElementById('productId').textContent = '0x' + info.product_id.toString(16);
+            document.getElementById('deviceInfo').classList.add('show');
+        }
+
+        function showError(message) {
+            const errorEl = document.getElementById('error');
+            errorEl.textContent = message;
+            errorEl.classList.add('show');
+        }
+
+        function hideError() {
+            const errorEl = document.getElementById('error');
+            errorEl.classList.remove('show');
+        }
+
+        // Initialize when page loads
+        main().catch(console.error);
+    </script>
+</body>
+</html>
