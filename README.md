@@ -1,4 +1,4 @@
-<p align="center"><img width="120" src="./.github/logo.png"></p>
+<p align="center"><img width="240" src="./.github/logo.png"></p>
 <h2 align="center">WEBADB RUST</h2>
 
 # Rust WebADB
