@@ -4,7 +4,9 @@
 # Rust WebADB
 
 <div align="center">
+
 ![Powered By: IsMyPhonePwned](https://img.shields.io/badge/androguard-green?style=for-the-badge&label=Powered%20by&link=https%3A%2F%2Fgithub.com%2Fandroguard)
+
 </div>
 
 A pure Rust implementation of the Android Debug Bridge (ADB) protocol compiled to WebAssembly, enabling direct communication with Android devices from web browsers using WebUSB.
