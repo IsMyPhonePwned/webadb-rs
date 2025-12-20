@@ -237,6 +237,68 @@
         .file-icon {
             margin-right: 10px;
         }
+
+        /* File Manager Styles */
+        #fileTable tbody tr {
+            border-bottom: 1px solid #eee;
+            transition: background 0.2s;
+        }
+
+        #fileTable tbody tr:hover {
+            background: #f5f5f5;
+        }
+
+        #fileTable tbody tr.selected {
+            background: #E3F2FD !important;
+        }
+
+        #fileTable tbody td {
+            padding: 12px;
+        }
+
+        .file-row-name {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .file-icon-large {
+            font-size: 20px;
+        }
+
+        .context-menu-item:hover {
+            background: #f5f5f5;
+        }
+
+        .breadcrumb-part {
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 3px;
+            transition: background 0.2s;
+        }
+
+        .breadcrumb-part:hover {
+            background: #e0e0e0;
+        }
+
+        .breadcrumb-separator {
+            color: #999;
+            margin: 0 2px;
+        }
+
+        .quickPath:hover:not(:disabled) {
+            opacity: 0.8;
+        }
+
+        #fileDropZone {
+            display: none !important;
+        }
+
+        #fileDropZone.active {
+            display: flex !important;
+        }
     </style>
 </head>
 <body>
@@ -343,6 +405,158 @@
             
             <div style="margin-top: 10px; color: #888; font-size: 12px;">
                 💡 Tips: Use ↑/↓ arrows for command history | Ctrl+C to stop | Ctrl+L to clear
+            </div>
+        </div>
+
+        <!-- File Manager Section -->
+        <div class="section" style="background: #f5f5f5; border-left: 4px solid #FF9800;">
+            <h2>📁 File Manager</h2>
+            <p>Browse, upload, download, and manage files on your Android device.</p>
+            
+            <!-- Toolbar -->
+            <div style="background: white; padding: 15px; border-radius: 5px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <!-- Breadcrumb Navigation -->
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                    <button id="fileNavBack" disabled style="background: #666; padding: 6px 12px;">← Back</button>
+                    <button id="fileNavUp" disabled style="background: #666; padding: 6px 12px;">↑ Up</button>
+                    <div id="breadcrumbNav" style="flex: 1; display: flex; align-items: center; gap: 5px; padding: 8px; background: #f9f9f9; border-radius: 3px; font-family: monospace; font-size: 13px; overflow-x: auto;">
+                        <span style="color: #666;">Loading...</span>
+                    </div>
+                    <button id="fileRefresh" disabled style="background: #2196F3; padding: 6px 12px;">🔄 Refresh</button>
+                </div>
+                
+                <!-- Quick Paths -->
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">
+                    <button class="quickPath" data-path="/sdcard" disabled style="background: #4CAF50; color: white; padding: 4px 10px; font-size: 12px;">📱 SD Card</button>
+                    <button class="quickPath" data-path="/sdcard/Download" disabled style="background: #4CAF50; color: white; padding: 4px 10px; font-size: 12px;">📥 Downloads</button>
+                    <button class="quickPath" data-path="/sdcard/DCIM" disabled style="background: #4CAF50; color: white; padding: 4px 10px; font-size: 12px;">📷 Camera</button>
+                    <button class="quickPath" data-path="/data/local/tmp" disabled style="background: #4CAF50; color: white; padding: 4px 10px; font-size: 12px;">🔧 Tmp</button>
+                    <button class="quickPath" data-path="/" disabled style="background: #4CAF50; color: white; padding: 4px 10px; font-size: 12px;">🏠 Root</button>
+                </div>
+                
+                <!-- Actions -->
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button id="fileUploadBtn" disabled style="background: #FF9800;">⬆️ Upload Files</button>
+                    <input type="file" id="fileUploadInput" multiple style="display: none;">
+                    <button id="fileNewFolderBtn" disabled style="background: #9C27B0; color: white;">📁 New Folder</button>
+                    <button id="fileSelectAllBtn" disabled style="background: #666;">Select All</button>
+                    <button id="fileDeselectAllBtn" disabled style="background: #666;">Deselect All</button>
+                </div>
+            </div>
+            
+            <!-- File List Container -->
+            <div style="background: white; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); overflow: hidden;">
+                <div id="fileListContainer" style="max-height: 500px; overflow-y: auto;">
+                    <table id="fileTable" style="width: 100%; border-collapse: collapse;">
+                        <thead style="position: sticky; top: 0; background: #f5f5f5; z-index: 10;">
+                            <tr>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd; cursor: pointer; user-select: none;" data-sort="name">
+                                    <input type="checkbox" id="selectAllCheckbox" style="margin-right: 8px;">
+                                    📄 Name <span id="sortNameIndicator">▼</span>
+                                </th>
+                                <th style="padding: 12px; text-align: right; border-bottom: 2px solid #ddd; cursor: pointer; user-select: none; width: 120px;" data-sort="size">
+                                    💾 Size <span id="sortSizeIndicator"></span>
+                                </th>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd; width: 100px;">
+                                    📋 Type
+                                </th>
+                                <th style="padding: 12px; text-align: center; border-bottom: 2px solid #ddd; width: 100px;">
+                                    ⚙️ Actions
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="fileTableBody">
+                            <tr>
+                                <td colspan="4" style="padding: 40px; text-align: center; color: #999;">
+                                    Connect to a device to browse files
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Drop Zone Overlay -->
+            <div id="fileDropZone" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255, 152, 0, 0.9); z-index: 9999; align-items: center; justify-content: center;">
+                <div style="text-align: center; color: white;">
+                    <div style="font-size: 72px; margin-bottom: 20px;">📤</div>
+                    <div style="font-size: 32px; font-weight: bold;">Drop files here to upload</div>
+                    <div style="font-size: 18px; margin-top: 10px;" id="dropZonePath"></div>
+                </div>
+            </div>
+            
+            <!-- Context Menu -->
+            <div id="fileContextMenu" style="display: none; position: fixed; background: white; border: 1px solid #ccc; border-radius: 4px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); z-index: 10000; min-width: 180px;">
+                <div class="context-menu-item" data-action="open" style="padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #eee;">
+                    📂 Open
+                </div>
+                <div class="context-menu-item" data-action="download" style="padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #eee;">
+                    📥 Download
+                </div>
+                <div class="context-menu-item" data-action="rename" style="padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #eee;">
+                    ✏️ Rename
+                </div>
+                <div class="context-menu-item" data-action="delete" style="padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #eee; color: #f44336;">
+                    🗑️ Delete
+                </div>
+                <div class="context-menu-item" data-action="copypath" style="padding: 10px 15px; cursor: pointer;">
+                    📋 Copy Path
+                </div>
+            </div>
+        </div>
+
+        <!-- Modals -->
+        <div id="fileManagerModals">
+            <!-- Rename Modal -->
+            <div id="renameModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10001; align-items: center; justify-content: center;">
+                <div style="background: white; padding: 25px; border-radius: 8px; min-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                    <h3 style="margin-top: 0;">✏️ Rename</h3>
+                    <input type="text" id="renameInput" placeholder="New name" style="width: 100%; padding: 10px; font-size: 14px; border: 2px solid #ddd; border-radius: 4px; margin-bottom: 15px;">
+                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                        <button onclick="closeRenameModal()" style="background: #999; padding: 8px 20px;">Cancel</button>
+                        <button onclick="confirmRename()" style="background: #2196F3; padding: 8px 20px;">Rename</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- New Folder Modal -->
+            <div id="newFolderModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10001; align-items: center; justify-content: center;">
+                <div style="background: white; padding: 25px; border-radius: 8px; min-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                    <h3 style="margin-top: 0;">📁 Create New Folder</h3>
+                    <input type="text" id="newFolderInput" placeholder="Folder name" style="width: 100%; padding: 10px; font-size: 14px; border: 2px solid #ddd; border-radius: 4px; margin-bottom: 15px;">
+                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                        <button onclick="closeNewFolderModal()" style="background: #999; padding: 8px 20px;">Cancel</button>
+                        <button onclick="confirmNewFolder()" style="background: #9C27B0; color: white; padding: 8px 20px;">Create</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Delete Confirm Modal -->
+            <div id="deleteConfirmModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10001; align-items: center; justify-content: center;">
+                <div style="background: white; padding: 25px; border-radius: 8px; min-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                    <h3 style="margin-top: 0; color: #f44336;">🗑️ Confirm Delete</h3>
+                    <p id="deleteConfirmText">Are you sure you want to delete this item?</p>
+                    <div class="warning" style="margin: 15px 0;">
+                        <strong>⚠️ Warning:</strong> This action cannot be undone!
+                    </div>
+                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                        <button onclick="closeDeleteConfirmModal()" style="background: #999; padding: 8px 20px;">Cancel</button>
+                        <button onclick="confirmDelete()" style="background: #f44336; padding: 8px 20px;">Delete</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Upload Progress Modal -->
+            <div id="uploadProgressModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10001; align-items: center; justify-content: center;">
+                <div style="background: white; padding: 25px; border-radius: 8px; min-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                    <h3 style="margin-top: 0;">⬆️ Uploading Files</h3>
+                    <div id="uploadFileName" style="margin-bottom: 10px; font-weight: bold;">file.txt</div>
+                    <div style="background: #eee; border-radius: 10px; height: 24px; overflow: hidden; margin-bottom: 10px;">
+                        <div id="uploadProgressBar" style="background: linear-gradient(90deg, #FF9800, #FFC107); height: 100%; width: 0%; transition: width 0.3s;"></div>
+                    </div>
+                    <div id="uploadProgressText" style="text-align: center; color: #666; font-size: 14px;">0%</div>
+                    <div id="uploadStatus" style="margin-top: 10px; font-size: 12px; color: #666; text-align: center;"></div>
+                </div>
             </div>
         </div>
 
@@ -564,6 +778,601 @@
             }
         }
 
+        // File Manager State
+        let currentPath = '/sdcard';
+        let fileList = [];
+        let selectedFiles = new Set();
+        let fileHistory = [];
+        let fileHistoryIndex = -1;
+        let contextMenuTarget = null;
+        let renameTarget = null;
+        let sortBy = 'name';
+        let sortAsc = true;
+
+        // File Manager Functions
+        async function navigateToPath(path) {
+            try {
+                currentPath = path;
+                fileHistory.push(path);
+                fileHistoryIndex = fileHistory.length - 1;
+                await refreshFileList();
+                updateNavigationButtons();
+            } catch (error) {
+                showError('Failed to navigate: ' + error);
+            }
+        }
+
+        async function refreshFileList() {
+            try {
+                const entries = await adb.list_directory(currentPath);
+                fileList = entries;
+                selectedFiles.clear();
+                renderFileList();
+                renderBreadcrumb();
+            } catch (error) {
+                showError('Failed to list directory: ' + error);
+                document.getElementById('fileTableBody').innerHTML = `
+                    <tr><td colspan="4" style="padding: 40px; text-align: center; color: #f44336;">
+                        Error loading directory: ${error}
+                    </td></tr>
+                `;
+            }
+        }
+
+        function renderFileList() {
+            const tbody = document.getElementById('fileTableBody');
+            const sortedList = sortFileList([...fileList]);
+            
+            if (sortedList.length === 0) {
+                tbody.innerHTML = `
+                    <tr><td colspan="4" style="padding: 40px; text-align: center; color: #999;">
+                        This directory is empty
+                    </td></tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = sortedList.map((entry, index) => {
+                const isDir = entry.is_directory;
+                const icon = getFileIcon(entry);
+                const size = isDir ? '-' : formatFileSize(entry.size);
+                const type = isDir ? 'Folder' : getFileType(entry.name);
+                const fullPath = currentPath.endsWith('/') ? currentPath + entry.name : currentPath + '/' + entry.name;
+                const isSelected = selectedFiles.has(fullPath);
+                
+                return `
+                    <tr class="${isSelected ? 'selected' : ''}" data-path="${fullPath}" data-index="${index}">
+                        <td>
+                            <div class="file-row-name">
+                                <input type="checkbox" class="file-checkbox" data-path="${fullPath}" ${isSelected ? 'checked' : ''} onclick="toggleFileSelection('${fullPath}', event)">
+                                <span class="file-icon-large">${icon}</span>
+                                <span onclick="handleFileClick('${fullPath}', ${isDir})" style="flex: 1; cursor: pointer;">${entry.name}</span>
+                            </div>
+                        </td>
+                        <td style="text-align: right;">${size}</td>
+                        <td>${type}</td>
+                        <td style="text-align: center;">
+                            <button onclick="handleFileAction('${fullPath}', '${isDir ? 'open' : 'download'}')" style="background: #2196F3; color: white; padding: 4px 12px; font-size: 12px;">
+                                ${isDir ? '📂 Open' : '📥 Download'}
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            // Add right-click listeners
+            tbody.querySelectorAll('tr[data-path]').forEach(row => {
+                row.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    showContextMenu(e, row.dataset.path);
+                });
+            });
+        }
+
+        function renderBreadcrumb() {
+            const nav = document.getElementById('breadcrumbNav');
+            const parts = currentPath.split('/').filter(p => p);
+            
+            let html = '<span class="breadcrumb-part" onclick="navigateToPath(\'/\')">🏠 root</span>';
+            let path = '';
+            
+            parts.forEach((part, index) => {
+                path += '/' + part;
+                const currentPath = path;
+                html += `<span class="breadcrumb-separator">/</span>`;
+                html += `<span class="breadcrumb-part" onclick="navigateToPath('${currentPath}')">${part}</span>`;
+            });
+            
+            nav.innerHTML = html;
+        }
+
+        function sortFileList(list) {
+            return list.sort((a, b) => {
+                // Folders first
+                if (a.is_directory && !b.is_directory) return -1;
+                if (!a.is_directory && b.is_directory) return 1;
+                
+                // Then by sort field
+                let aVal, bVal;
+                if (sortBy === 'name') {
+                    aVal = a.name.toLowerCase();
+                    bVal = b.name.toLowerCase();
+                } else if (sortBy === 'size') {
+                    aVal = a.size || 0;
+                    bVal = b.size || 0;
+                }
+                
+                if (aVal < bVal) return sortAsc ? -1 : 1;
+                if (aVal > bVal) return sortAsc ? 1 : -1;
+                return 0;
+            });
+        }
+
+        function getFileIcon(entry) {
+            if (entry.is_directory) return '📁';
+            
+            const ext = entry.name.split('.').pop().toLowerCase();
+            const iconMap = {
+                // Images
+                'jpg': '🖼️', 'jpeg': '🖼️', 'png': '🖼️', 'gif': '🖼️', 'webp': '🖼️', 'bmp': '🖼️',
+                // Videos
+                'mp4': '🎬', 'avi': '🎬', 'mkv': '🎬', 'mov': '🎬', 'wmv': '🎬',
+                // Audio
+                'mp3': '🎵', 'wav': '🎵', 'm4a': '🎵', 'flac': '🎵', 'ogg': '🎵',
+                // Documents
+                'pdf': '📄', 'doc': '📄', 'docx': '📄', 'txt': '📝', 'log': '📝',
+                // Archives
+                'zip': '📦', 'rar': '📦', 'tar': '📦', 'gz': '📦', '7z': '📦', 'apk': '📦',
+                // Code
+                'js': '📜', 'html': '📜', 'css': '📜', 'json': '📜', 'xml': '📜',
+            };
+            
+            return iconMap[ext] || '📄';
+        }
+
+        function getFileType(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const typeMap = {
+                'jpg': 'Image', 'jpeg': 'Image', 'png': 'Image', 'gif': 'Image',
+                'mp4': 'Video', 'avi': 'Video', 'mkv': 'Video',
+                'mp3': 'Audio', 'wav': 'Audio', 'm4a': 'Audio',
+                'pdf': 'PDF', 'txt': 'Text', 'log': 'Log',
+                'zip': 'Archive', 'apk': 'APK',
+            };
+            return typeMap[ext] || 'File';
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        async function handleFileClick(path, isDirectory) {
+            if (isDirectory) {
+                await navigateToPath(path);
+            } else {
+                await downloadFile(path);
+            }
+        }
+
+        async function handleFileAction(path, action) {
+            if (action === 'open') {
+                await navigateToPath(path);
+            } else if (action === 'download') {
+                await downloadFile(path);
+            }
+        }
+
+        async function downloadFile(path) {
+            try {
+                showSuccess('Downloading: ' + path.split('/').pop());
+                const data = await adb.pull_file(path);
+                const blob = new Blob([data]);
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = path.split('/').pop();
+                a.click();
+                URL.revokeObjectURL(url);
+                showSuccess('Downloaded: ' + path.split('/').pop());
+            } catch (error) {
+                showError('Download failed: ' + error);
+            }
+        }
+
+        async function uploadFiles(files) {
+            const modal = document.getElementById('uploadProgressModal');
+            const fileName = document.getElementById('uploadFileName');
+            const progressBar = document.getElementById('uploadProgressBar');
+            const progressText = document.getElementById('uploadProgressText');
+            const status = document.getElementById('uploadStatus');
+            
+            modal.style.display = 'flex';
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                fileName.textContent = `${file.name} (${i + 1}/${files.length})`;
+                status.textContent = 'Reading file...';
+                
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const data = new Uint8Array(arrayBuffer);
+                    
+                    status.textContent = 'Uploading...';
+                    const remotePath = currentPath.endsWith('/') ? 
+                        currentPath + file.name : 
+                        currentPath + '/' + file.name;
+                    
+                    await adb.push_file(data, remotePath);
+                    
+                    progressBar.style.width = ((i + 1) / files.length * 100) + '%';
+                    progressText.textContent = Math.round((i + 1) / files.length * 100) + '%';
+                    status.textContent = 'Complete!';
+                    
+                } catch (error) {
+                    showError('Upload failed for ' + file.name + ': ' + error);
+                    break;
+                }
+            }
+            
+            setTimeout(() => {
+                modal.style.display = 'none';
+                progressBar.style.width = '0%';
+                refreshFileList();
+            }, 1000);
+        }
+
+        function toggleFileSelection(path, event) {
+            if (event) event.stopPropagation();
+            
+            if (selectedFiles.has(path)) {
+                selectedFiles.delete(path);
+            } else {
+                selectedFiles.add(path);
+            }
+            
+            renderFileList();
+        }
+
+        function selectAllFiles() {
+            fileList.forEach(entry => {
+                const path = currentPath.endsWith('/') ? currentPath + entry.name : currentPath + '/' + entry.name;
+                selectedFiles.add(path);
+            });
+            renderFileList();
+        }
+
+        function deselectAllFiles() {
+            selectedFiles.clear();
+            renderFileList();
+        }
+
+        function showContextMenu(event, path) {
+            const menu = document.getElementById('fileContextMenu');
+            contextMenuTarget = path;
+            
+            menu.style.display = 'block';
+            menu.style.left = event.pageX + 'px';
+            menu.style.top = event.pageY + 'px';
+        }
+
+        function hideContextMenu() {
+            document.getElementById('fileContextMenu').style.display = 'none';
+        }
+
+        async function handleContextMenuAction(action) {
+            hideContextMenu();
+            
+            if (!contextMenuTarget) return;
+            
+            const entry = fileList.find(e => {
+                const path = currentPath.endsWith('/') ? currentPath + e.name : currentPath + '/' + e.name;
+                return path === contextMenuTarget;
+            });
+            
+            switch (action) {
+                case 'open':
+                    if (entry && entry.is_directory) {
+                        await navigateToPath(contextMenuTarget);
+                    }
+                    break;
+                case 'download':
+                    await downloadFile(contextMenuTarget);
+                    break;
+                case 'rename':
+                    showRenameDialog(contextMenuTarget);
+                    break;
+                case 'delete':
+                    showDeleteConfirm(contextMenuTarget);
+                    break;
+                case 'copypath':
+                    navigator.clipboard.writeText(contextMenuTarget);
+                    showSuccess('Path copied to clipboard');
+                    break;
+            }
+        }
+
+        function showRenameDialog(path) {
+            renameTarget = path;
+            const name = path.split('/').pop();
+            document.getElementById('renameInput').value = name;
+            document.getElementById('renameModal').style.display = 'flex';
+            document.getElementById('renameInput').focus();
+            document.getElementById('renameInput').select();
+        }
+
+        function closeRenameModal() {
+            document.getElementById('renameModal').style.display = 'none';
+            renameTarget = null;
+        }
+
+        async function confirmRename() {
+            const newName = document.getElementById('renameInput').value.trim();
+            if (!newName || !renameTarget) return;
+            
+            const parentPath = renameTarget.substring(0, renameTarget.lastIndexOf('/'));
+            const newPath = parentPath + '/' + newName;
+            
+            try {
+                await adb.rename_file(renameTarget, newPath);
+                showSuccess('Renamed successfully');
+                closeRenameModal();
+                await refreshFileList();
+            } catch (error) {
+                showError('Rename failed: ' + error);
+            }
+        }
+
+        function showNewFolderDialog() {
+            document.getElementById('newFolderInput').value = '';
+            document.getElementById('newFolderModal').style.display = 'flex';
+            document.getElementById('newFolderInput').focus();
+        }
+
+        function closeNewFolderModal() {
+            document.getElementById('newFolderModal').style.display = 'none';
+        }
+
+        async function confirmNewFolder() {
+            const name = document.getElementById('newFolderInput').value.trim();
+            if (!name) return;
+            
+            const newPath = currentPath.endsWith('/') ? currentPath + name : currentPath + '/' + name;
+            
+            try {
+                await adb.create_directory(newPath);
+                showSuccess('Folder created');
+                closeNewFolderModal();
+                await refreshFileList();
+            } catch (error) {
+                showError('Create folder failed: ' + error);
+            }
+        }
+
+        function showDeleteConfirm(path) {
+            const name = path.split('/').pop();
+            document.getElementById('deleteConfirmText').textContent = 
+                `Are you sure you want to delete "${name}"?`;
+            document.getElementById('deleteConfirmModal').style.display = 'flex';
+            contextMenuTarget = path;
+        }
+
+        function closeDeleteConfirmModal() {
+            document.getElementById('deleteConfirmModal').style.display = 'none';
+        }
+
+        async function confirmDelete() {
+            if (!contextMenuTarget) return;
+            
+            try {
+                await adb.delete_path(contextMenuTarget);
+                showSuccess('Deleted successfully');
+                closeDeleteConfirmModal();
+                await refreshFileList();
+            } catch (error) {
+                showError('Delete failed: ' + error);
+            }
+        }
+
+        function updateNavigationButtons() {
+            document.getElementById('fileNavBack').disabled = fileHistoryIndex <= 0;
+            document.getElementById('fileNavUp').disabled = currentPath === '/';
+        }
+
+        async function navigateBack() {
+            if (fileHistoryIndex > 0) {
+                fileHistoryIndex--;
+                currentPath = fileHistory[fileHistoryIndex];
+                await refreshFileList();
+                updateNavigationButtons();
+            }
+        }
+
+        async function navigateUp() {
+            if (currentPath === '/') return;
+            const parent = currentPath.substring(0, currentPath.lastIndexOf('/')) || '/';
+            await navigateToPath(parent);
+        }
+
+        function setupFileManagerListeners() {
+            // Navigation
+            document.getElementById('fileNavBack').addEventListener('click', navigateBack);
+            document.getElementById('fileNavUp').addEventListener('click', navigateUp);
+            document.getElementById('fileRefresh').addEventListener('click', refreshFileList);
+            
+            // Quick paths
+            document.querySelectorAll('.quickPath').forEach(btn => {
+                btn.addEventListener('click', () => navigateToPath(btn.dataset.path));
+            });
+            
+            // Upload
+            document.getElementById('fileUploadBtn').addEventListener('click', () => {
+                document.getElementById('fileUploadInput').click();
+            });
+            
+            document.getElementById('fileUploadInput').addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    uploadFiles(Array.from(e.target.files));
+                    e.target.value = '';
+                }
+            });
+            
+            // New folder
+            document.getElementById('fileNewFolderBtn').addEventListener('click', showNewFolderDialog);
+            
+            // Selection
+            document.getElementById('fileSelectAllBtn').addEventListener('click', selectAllFiles);
+            document.getElementById('fileDeselectAllBtn').addEventListener('click', deselectAllFiles);
+            
+            // Context menu
+            document.querySelectorAll('.context-menu-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    handleContextMenuAction(item.dataset.action);
+                });
+            });
+            
+            // Hide context menu on click outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('#fileContextMenu')) {
+                    hideContextMenu();
+                }
+            });
+            
+            // Drag and drop
+            const dropZone = document.getElementById('fileDropZone');
+            
+            document.addEventListener('dragenter', (e) => {
+                if (e.dataTransfer.types.includes('Files')) {
+                    e.preventDefault();
+                    dropZone.classList.add('active');
+                    document.getElementById('dropZonePath').textContent = currentPath;
+                }
+            });
+            
+            dropZone.addEventListener('dragleave', (e) => {
+                if (e.target === dropZone) {
+                    dropZone.classList.remove('active');
+                }
+            });
+            
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+            });
+            
+            dropZone.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('active');
+                
+                const files = Array.from(e.dataTransfer.files);
+                if (files.length > 0) {
+                    await uploadFiles(files);
+                }
+            });
+            
+            // Sorting
+            document.querySelector('th[data-sort="name"]').addEventListener('click', () => {
+                if (sortBy === 'name') {
+                    sortAsc = !sortAsc;
+                } else {
+                    sortBy = 'name';
+                    sortAsc = true;
+                }
+                document.getElementById('sortNameIndicator').textContent = sortAsc ? '▼' : '▲';
+                document.getElementById('sortSizeIndicator').textContent = '';
+                renderFileList();
+            });
+            
+            document.querySelector('th[data-sort="size"]').addEventListener('click', () => {
+                if (sortBy === 'size') {
+                    sortAsc = !sortAsc;
+                } else {
+                    sortBy = 'size';
+                    sortAsc = true;
+                }
+                document.getElementById('sortSizeIndicator').textContent = sortAsc ? '▼' : '▲';
+                document.getElementById('sortNameIndicator').textContent = '';
+                renderFileList();
+            });
+            
+            // Keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                // Only handle if no modal is open
+                if (document.querySelector('.modal[style*="flex"]')) return;
+                
+                if (e.key === 'F5') {
+                    e.preventDefault();
+                    refreshFileList();
+                }
+                
+                if (e.key === 'Delete' && selectedFiles.size > 0) {
+                    e.preventDefault();
+                    const firstPath = Array.from(selectedFiles)[0];
+                    showDeleteConfirm(firstPath);
+                }
+                
+                if (e.key === 'Backspace' && currentPath !== '/') {
+                    e.preventDefault();
+                    navigateUp();
+                }
+            });
+            
+            // Enter key for rename modal
+            document.getElementById('renameInput').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    confirmRename();
+                } else if (e.key === 'Escape') {
+                    closeRenameModal();
+                }
+            });
+            
+            // Enter key for new folder modal
+            document.getElementById('newFolderInput').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    confirmNewFolder();
+                } else if (e.key === 'Escape') {
+                    closeNewFolderModal();
+                }
+            });
+        }
+
+        async function enableFileManager() {
+            // Enable all file manager buttons
+            document.querySelectorAll('.quickPath').forEach(btn => btn.disabled = false);
+            document.getElementById('fileNavBack').disabled = false;
+            document.getElementById('fileNavUp').disabled = false;
+            document.getElementById('fileRefresh').disabled = false;
+            document.getElementById('fileUploadBtn').disabled = false;
+            document.getElementById('fileNewFolderBtn').disabled = false;
+            document.getElementById('fileSelectAllBtn').disabled = false;
+            document.getElementById('fileDeselectAllBtn').disabled = false;
+            
+            // Load initial directory
+            await navigateToPath('/sdcard');
+        }
+
+        function disableFileManager() {
+            // Disable all file manager buttons
+            document.querySelectorAll('.quickPath').forEach(btn => btn.disabled = true);
+            document.getElementById('fileNavBack').disabled = true;
+            document.getElementById('fileNavUp').disabled = true;
+            document.getElementById('fileRefresh').disabled = true;
+            document.getElementById('fileUploadBtn').disabled = true;
+            document.getElementById('fileNewFolderBtn').disabled = true;
+            document.getElementById('fileSelectAllBtn').disabled = true;
+            document.getElementById('fileDeselectAllBtn').disabled = true;
+            
+            // Clear file list
+            document.getElementById('fileTableBody').innerHTML = `
+                <tr><td colspan="4" style="padding: 40px; text-align: center; color: #999;">
+                    Connect to a device to browse files
+                </td></tr>
+            `;
+            document.getElementById('breadcrumbNav').innerHTML = '<span style="color: #666;">Not connected</span>';
+        }
+
         async function main() {
             await init();
 
@@ -618,6 +1427,9 @@
             document.getElementById('shellCmdVersion').addEventListener('click', () => executeQuickCommand('getprop | grep version'));
             document.getElementById('shellCmdUname').addEventListener('click', () => executeQuickCommand('uname -a'));
             document.getElementById('shellCmdClear').addEventListener('click', clearTerminal);
+            
+            // File Manager
+            setupFileManagerListeners();
         }
 
         async function connect() {
@@ -644,6 +1456,9 @@
                 }
                 
                 appendTerminal('$ ', '#00ff00');
+                
+                // Enable file manager
+                await enableFileManager();
             } catch (error) {
                 updateStatus('disconnected', 'Connection failed');
                 alert('Failed to connect: ' + error);
@@ -655,6 +1470,7 @@
                 await adb.disconnect();
                 updateStatus('disconnected', 'Disconnected');
                 disableButtons();
+                disableFileManager();
             } catch (error) {
                 alert('Failed to disconnect: ' + error);
             }

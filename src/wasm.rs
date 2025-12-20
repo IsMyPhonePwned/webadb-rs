@@ -407,6 +407,50 @@ impl Adb {
             .await
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
+    
+    /// Push (upload) a file to device
+    #[wasm_bindgen]
+    pub async fn push_file(&mut self, data: Vec<u8>, remote_path: String) -> Result<(), JsValue> {
+        let client = self.client.as_mut()
+            .ok_or_else(|| JsValue::from_str("Not connected"))?;
+        
+        client.push_file(&data, &remote_path)
+            .await
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+    
+    /// Delete a file or directory
+    #[wasm_bindgen]
+    pub async fn delete_path(&mut self, remote_path: String) -> Result<(), JsValue> {
+        let client = self.client.as_mut()
+            .ok_or_else(|| JsValue::from_str("Not connected"))?;
+        
+        client.delete_path(&remote_path)
+            .await
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+    
+    /// Rename or move a file/directory
+    #[wasm_bindgen]
+    pub async fn rename_file(&mut self, old_path: String, new_path: String) -> Result<(), JsValue> {
+        let client = self.client.as_mut()
+            .ok_or_else(|| JsValue::from_str("Not connected"))?;
+        
+        client.rename_file(&old_path, &new_path)
+            .await
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+    
+    /// Create a directory (with parent directories)
+    #[wasm_bindgen]
+    pub async fn create_directory(&mut self, remote_path: String) -> Result<(), JsValue> {
+        let client = self.client.as_mut()
+            .ok_or_else(|| JsValue::from_str("Not connected"))?;
+        
+        client.create_directory(&remote_path)
+            .await
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
 }
 
 /// Generate a new RSA keypair and save it

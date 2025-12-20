@@ -911,6 +911,119 @@ impl AdbClient {
         Ok(entries)
     }
 
+    /// Push (upload) a file to device
+    pub async fn push_file(&mut self, data: &[u8], remote_path: &str) -> Result<(), AdbError> {
+        use crate::sync::{SyncCommand, SyncPacket};
+
+        // Open sync connection
+        let local_id = self.open_stream("sync:").await?;
+
+        // Send SEND command with path and mode (0644 = rw-r--r--)
+        let path_and_mode = format!("{},0644", remote_path);
+        let send_packet = SyncPacket::new(SyncCommand::Send, path_and_mode.as_bytes().to_vec());
+        
+        if let Err(e) = self.write_stream(local_id, &send_packet.to_bytes()).await {
+            let _ = self.close_stream(local_id).await;
+            return Err(e);
+        }
+
+        // Send data in chunks (max 64KB per chunk)
+        const CHUNK_SIZE: usize = 65536;
+        let mut offset = 0;
+        
+        while offset < data.len() {
+            let end = std::cmp::min(offset + CHUNK_SIZE, data.len());
+            let chunk = &data[offset..end];
+            
+            let data_packet = SyncPacket::new(SyncCommand::Data, chunk.to_vec());
+            
+            if let Err(e) = self.write_stream(local_id, &data_packet.to_bytes()).await {
+                let _ = self.close_stream(local_id).await;
+                return Err(e);
+            }
+            
+            offset = end;
+        }
+
+        // Send DONE packet with timestamp (use current time)
+        let timestamp = (js_sys::Date::now() / 1000.0) as u32;
+        let done_packet = SyncPacket::new(SyncCommand::Done, timestamp.to_le_bytes().to_vec());
+        
+        if let Err(e) = self.write_stream(local_id, &done_packet.to_bytes()).await {
+            let _ = self.close_stream(local_id).await;
+            return Err(e);
+        }
+
+        // Read response (should be DONE or FAIL)
+        let mut buffer = Vec::new();
+        loop {
+            let (_, data) = match self.read_stream().await {
+                Ok(result) => result,
+                Err(AdbError::StreamError(msg)) if msg.contains("closed") => {
+                    break;
+                }
+                Err(e) => {
+                    let _ = self.close_stream(local_id).await;
+                    return Err(e);
+                }
+            };
+            
+            if data.is_empty() {
+                break;
+            }
+            
+            buffer.extend_from_slice(&data);
+            
+            if buffer.len() >= 8 {
+                let packet = match SyncPacket::from_bytes(&buffer) {
+                    Ok(p) => p,
+                    Err(_) => break,
+                };
+                
+                match packet.command {
+                    SyncCommand::Done => {
+                        self.close_stream(local_id).await?;
+                        return Ok(());
+                    }
+                    SyncCommand::Fail => {
+                        let error_msg = String::from_utf8_lossy(&packet.data);
+                        let _ = self.close_stream(local_id).await;
+                        return Err(AdbError::IoError(format!("Push failed: {}", error_msg)));
+                    }
+                    _ => break,
+                }
+            }
+        }
+        
+        self.close_stream(local_id).await?;
+        Ok(())
+    }
+
+    /// Delete a file or directory
+    pub async fn delete_path(&mut self, remote_path: &str) -> Result<(), AdbError> {
+        let escaped_path = remote_path.replace("'", "'\\''");
+        let command = format!("rm -rf '{}'", escaped_path);
+        self.shell(&command).await?;
+        Ok(())
+    }
+
+    /// Rename or move a file/directory
+    pub async fn rename_file(&mut self, old_path: &str, new_path: &str) -> Result<(), AdbError> {
+        let escaped_old = old_path.replace("'", "'\\''");
+        let escaped_new = new_path.replace("'", "'\\''");
+        let command = format!("mv '{}' '{}'", escaped_old, escaped_new);
+        self.shell(&command).await?;
+        Ok(())
+    }
+
+    /// Create a directory (with parent directories)
+    pub async fn create_directory(&mut self, remote_path: &str) -> Result<(), AdbError> {
+        let escaped_path = remote_path.replace("'", "'\\''");
+        let command = format!("mkdir -p '{}'", escaped_path);
+        self.shell(&command).await?;
+        Ok(())
+    }
+
     /// Disconnect from device
     pub async fn disconnect(&self) -> Result<(), AdbError> {
         self.transport.close().await
