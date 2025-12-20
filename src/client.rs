@@ -6,14 +6,22 @@ use crate::transport::WebUsbTransport;
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
 
+/// Stream with activity tracking
+#[derive(Clone)]
+struct TrackedStream {
+    stream: Stream,
+    last_activity: f64, // Timestamp in ms
+}
+
 /// Main ADB client
 pub struct AdbClient {
     transport: WebUsbTransport,
     keypair: AdbKeyPair,
     state: ConnectionState,
     next_local_id: u32,
-    streams: HashMap<u32, Stream>,
+    streams: HashMap<u32, TrackedStream>,
     system_identity: String,
+    last_health_check: f64,
 }
 
 impl AdbClient {
@@ -35,7 +43,79 @@ impl AdbClient {
             next_local_id: 1,
             streams: HashMap::new(),
             system_identity,
+            last_health_check: Self::now(),
         })
+    }
+    
+    /// Get current timestamp
+    fn now() -> f64 {
+        js_sys::Date::now()
+    }
+    
+    /// Get active stream count
+    pub fn active_stream_count(&self) -> usize {
+        self.streams.len()
+    }
+    
+    /// Cleanup stale streams (older than 30 seconds)
+    pub async fn cleanup_stale_streams(&mut self) -> usize {
+        let now = Self::now();
+        let stale_ids: Vec<u32> = self.streams.iter()
+            .filter(|(_, ts)| now - ts.last_activity > 30000.0)
+            .map(|(id, _)| *id)
+            .collect();
+        
+        for id in &stale_ids {
+            if let Some(ts) = self.streams.get(id) {
+                let clse = Message::new(Command::Clse, *id, ts.stream.remote_id, &[]);
+                let _ = self.transport.send_message(&clse, &[]).await;
+            }
+            self.streams.remove(id);
+        }
+        
+        stale_ids.len()
+    }
+    
+    /// Health check with rate limiting
+    pub async fn health_check(&mut self) -> Result<bool, AdbError> {
+        let now = Self::now();
+        if now - self.last_health_check < 5000.0 {
+            return Ok(true);
+        }
+        self.last_health_check = now;
+        
+        match self.shell_with_timeout("echo ping", 2000).await {
+            Ok(out) => Ok(out.trim() == "ping"),
+            Err(_) => Ok(false),
+        }
+    }
+    
+    /// Execute shell command with timeout
+    pub async fn shell_with_timeout(&mut self, command: &str, timeout_ms: u32) -> Result<String, AdbError> {
+        let dest = format!("shell:{}", command);
+        let local_id = self.open_stream(&dest).await?;
+        let start = Self::now();
+        let timeout = timeout_ms as f64;
+        let mut output = Vec::new();
+
+        loop {
+            if Self::now() - start > timeout {
+                let _ = self.close_stream(local_id).await;
+                return Err(AdbError::IoError(format!("Timeout after {}ms", timeout_ms)));
+            }
+            
+            match self.read_stream().await {
+                Ok((_, data)) => output.extend_from_slice(&data),
+                Err(AdbError::StreamError(msg)) if msg.contains("closed") => break,
+                Err(e) => {
+                    let _ = self.close_stream(local_id).await;
+                    return Err(e);
+                }
+            }
+        }
+
+        self.close_stream(local_id).await?;
+        String::from_utf8(output).map_err(|e| AdbError::IoError(format!("Invalid UTF-8: {}", e)))
     }
 
     /// Connect to the device
@@ -177,7 +257,11 @@ impl AdbClient {
                             local_id,
                             remote_id: response.arg0,
                         };
-                        self.streams.insert(local_id, stream);
+                        let tracked = TrackedStream {
+                            stream,
+                            last_activity: Self::now(),
+                        };
+                        self.streams.insert(local_id, tracked);
                         return Ok(local_id);
                     } else {
                         // OKAY for different stream - skip and continue
@@ -203,9 +287,9 @@ impl AdbClient {
                         )));
                     } else {
                         // CLSE for different stream - handle it
-                        if let Some(old_stream) = self.streams.get(&response.arg1) {
+                        if let Some(old_tracked) = self.streams.get(&response.arg1) {
                             // Send CLSE acknowledgment for the old stream
-                            let clse = Message::new(Command::Clse, response.arg1, old_stream.remote_id, &[]);
+                            let clse = Message::new(Command::Clse, response.arg1, old_tracked.stream.remote_id, &[]);
                             let _ = self.transport.send_message(&clse, &[]).await;
                             self.streams.remove(&response.arg1);
                         }
@@ -215,8 +299,8 @@ impl AdbClient {
                 Command::Wrte => {
                     // Data for an old stream - send OKAY and skip
                     let old_local_id = response.arg1;
-                    if let Some(old_stream) = self.streams.get(&old_local_id) {
-                        let okay = Message::new(Command::Okay, old_local_id, old_stream.remote_id, &[]);
+                    if let Some(old_tracked) = self.streams.get(&old_local_id) {
+                        let okay = Message::new(Command::Okay, old_local_id, old_tracked.stream.remote_id, &[]);
                         let _ = self.transport.send_message(&okay, &[]).await;
                     }
                     continue;
@@ -230,14 +314,20 @@ impl AdbClient {
     }
 
     /// Write data to a stream
-    async fn write_stream(&self, local_id: u32, data: &[u8]) -> Result<(), AdbError> {
-        let stream = self
+    async fn write_stream(&mut self, local_id: u32, data: &[u8]) -> Result<(), AdbError> {
+        let remote_id = self
             .streams
             .get(&local_id)
-            .ok_or(AdbError::StreamError("Stream not found".to_string()))?;
+            .ok_or(AdbError::StreamError("Stream not found".to_string()))?
+            .stream.remote_id;
 
-        let message = Message::new(Command::Wrte, local_id, stream.remote_id, data);
+        let message = Message::new(Command::Wrte, local_id, remote_id, data);
         self.transport.send_message(&message, data).await?;
+
+        // Update activity
+        if let Some(tracked) = self.streams.get_mut(&local_id) {
+            tracked.last_activity = Self::now();
+        }
 
         // Wait for OKAY
         let (response, _) = self.transport.recv_message().await?;
@@ -249,7 +339,7 @@ impl AdbClient {
     }
 
     /// Read data from a stream
-    async fn read_stream(&self) -> Result<(u32, Vec<u8>), AdbError> {
+    async fn read_stream(&mut self) -> Result<(u32, Vec<u8>), AdbError> {
         // Loop to skip OKAY messages (flow control)
         loop {
             let (message, data) = self.transport.recv_message().await?;
@@ -259,12 +349,17 @@ impl AdbClient {
                     let local_id = message.arg1; // arg1 is the remote_id (our local_id)
                     
                     // Try to find the stream
-                    let stream = self.streams.get(&local_id);
+                    let tracked = self.streams.get(&local_id);
                     
-                    if let Some(stream) = stream {
+                    if let Some(tracked) = tracked {
                         // Send OKAY acknowledgment
-                        let okay = Message::new(Command::Okay, local_id, stream.remote_id, &[]);
+                        let okay = Message::new(Command::Okay, local_id, tracked.stream.remote_id, &[]);
                         self.transport.send_message(&okay, &[]).await?;
+                        
+                        // Update activity
+                        if let Some(t) = self.streams.get_mut(&local_id) {
+                            t.last_activity = Self::now();
+                        }
                         
                         return Ok((local_id, data));
                     } else {
@@ -303,8 +398,8 @@ impl AdbClient {
     /// Close a stream
     async fn close_stream(&mut self, local_id: u32) -> Result<(), AdbError> {
         // Get stream info - if not found, already closed
-        let stream = match self.streams.get(&local_id) {
-            Some(s) => s.clone(),
+        let remote_id = match self.streams.get(&local_id) {
+            Some(tracked) => tracked.stream.remote_id,
             None => {
                 // Stream already closed/removed - this is fine
                 return Ok(());
@@ -312,7 +407,7 @@ impl AdbClient {
         };
 
         // Send CLSE message
-        let message = Message::new(Command::Clse, local_id, stream.remote_id, &[]);
+        let message = Message::new(Command::Clse, local_id, remote_id, &[]);
         if let Err(_) = self.transport.send_message(&message, &[]).await {
             // Failed to send CLSE - device might be disconnected
             // Clean up anyway
@@ -320,7 +415,7 @@ impl AdbClient {
             return Ok(());
         }
 
-        // Wait for CLSE response with timeout
+        // Wait for CLSE response
         match self.transport.recv_message().await {
             Ok((response, _)) => {
                 match response.command {
@@ -376,6 +471,7 @@ impl AdbClient {
         String::from_utf8(output)
             .map_err(|e| AdbError::IoError(format!("Invalid UTF-8: {}", e)))
     }
+    
 
     /// Get device properties
     pub async fn get_properties(&mut self) -> Result<HashMap<String, String>, AdbError> {
@@ -586,6 +682,9 @@ impl AdbClient {
     /// WARNING: This is VERY SLOW:
     /// - Generation: 2-5 minutes (device generates the report)
     /// - Download: 1-3 minutes (large file ~10-50MB)
+    /// 
+    /// RECOMMENDED: Use list_bugreports() + download_bugreport() instead
+    /// to download previously generated reports instantly.
     pub async fn bugreport(&mut self) -> Result<Vec<u8>, AdbError> {
         // Try bugreportz first (Android 7.0+, generates ZIP)
         let local_id = match self.open_stream("shell:bugreportz").await {

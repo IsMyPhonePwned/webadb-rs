@@ -253,6 +253,99 @@
             <button id="disconnectBtn" disabled>Disconnect</button>
         </div>
 
+        <!-- Connection Diagnostics Section -->
+        <div class="section" style="background: #f0f8ff; border-left: 4px solid #2196F3;">
+            <h2>🔍 Connection Diagnostics</h2>
+            <p>Monitor ADB connection health and manage streams.</p>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0;">
+                <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <div style="color: #666; font-size: 12px; margin-bottom: 5px;">Active Streams</div>
+                    <div style="font-size: 28px; font-weight: bold; color: #2196F3;" id="streamCount">0</div>
+                </div>
+                <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <div style="color: #666; font-size: 12px; margin-bottom: 5px;">Connection Health</div>
+                    <div style="font-size: 24px; font-weight: bold; color: #999;" id="healthStatus">Unknown</div>
+                </div>
+                <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <div style="color: #666; font-size: 12px; margin-bottom: 5px;">Stale Cleaned</div>
+                    <div style="font-size: 28px; font-weight: bold; color: #FF9800;" id="cleanedCount">0</div>
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button id="healthCheckBtn" disabled style="background: #4CAF50;">Check Health</button>
+                <button id="cleanupStreamsBtn" disabled style="background: #FF9800;">Cleanup Stale</button>
+                <button id="refreshDiagnosticsBtn" disabled style="background: #2196F3;">Refresh</button>
+            </div>
+            
+            <div id="diagnosticsLog" style="margin-top: 15px; padding: 10px; background: white; border-radius: 5px; font-family: monospace; font-size: 12px; max-height: 200px; overflow-y: auto; display: none;"></div>
+        </div>
+
+        <!-- Shell Terminal Section -->
+        <div class="section" style="background: #1e1e1e; color: #d4d4d4; border-left: 4px solid #00ff00;">
+            <h2 style="color: #00ff00;">💻 Shell Terminal</h2>
+            <p style="color: #d4d4d4;">Execute commands on the Android device.</p>
+            
+            <!-- Quick Commands -->
+            <div style="margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 8px;">
+                <button id="shellCmdLs" style="background: #2d2d2d; color: #00ff00; border: 1px solid #00ff00; padding: 6px 12px; font-size: 12px;">ls -la</button>
+                <button id="shellCmdPwd" style="background: #2d2d2d; color: #00ff00; border: 1px solid #00ff00; padding: 6px 12px; font-size: 12px;">pwd</button>
+                <button id="shellCmdDf" style="background: #2d2d2d; color: #00ff00; border: 1px solid #00ff00; padding: 6px 12px; font-size: 12px;">df -h</button>
+                <button id="shellCmdPs" style="background: #2d2d2d; color: #00ff00; border: 1px solid #00ff00; padding: 6px 12px; font-size: 12px;">ps</button>
+                <button id="shellCmdVersion" style="background: #2d2d2d; color: #00ff00; border: 1px solid #00ff00; padding: 6px 12px; font-size: 12px;">version</button>
+                <button id="shellCmdUname" style="background: #2d2d2d; color: #00ff00; border: 1px solid #00ff00; padding: 6px 12px; font-size: 12px;">uname</button>
+                <button id="shellCmdClear" style="background: #2d2d2d; color: #ff6b6b; border: 1px solid #ff6b6b; padding: 6px 12px; font-size: 12px;">clear</button>
+            </div>
+            
+            <!-- Terminal Output -->
+            <div id="terminalOutput" style="
+                background: #000000;
+                color: #00ff00;
+                font-family: 'Courier New', monospace;
+                font-size: 13px;
+                padding: 15px;
+                border-radius: 5px;
+                height: 400px;
+                overflow-y: auto;
+                margin-bottom: 10px;
+                white-space: pre-wrap;
+                word-wrap: break-word;
+                border: 2px solid #00ff00;
+            ">$ <span style="color: #888;">Connected. Type a command or use quick buttons above.</span></div>
+            
+            <!-- Command Input -->
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <span style="color: #00ff00; font-family: 'Courier New', monospace; font-size: 14px; font-weight: bold;">$</span>
+                <input 
+                    type="text" 
+                    id="shellInput" 
+                    placeholder="Enter command (e.g., ls -la, df -h, ps)" 
+                    disabled
+                    style="
+                        flex: 1;
+                        background: #000000;
+                        color: #00ff00;
+                        border: 2px solid #00ff00;
+                        padding: 10px;
+                        font-family: 'Courier New', monospace;
+                        font-size: 14px;
+                        border-radius: 5px;
+                    "
+                />
+                <button 
+                    id="shellExecuteBtn" 
+                    disabled
+                    style="background: #00ff00; color: #000; padding: 10px 20px; font-weight: bold;">
+                    Execute
+                </button>
+            </div>
+            
+            <div style="margin-top: 10px; color: #888; font-size: 12px;">
+                💡 Tips: Use ↑/↓ arrows for command history | Ctrl+C to stop | Ctrl+L to clear
+            </div>
+        </div>
+
         <!-- Bugreport Section -->
         <div class="section">
             <h2>📋 Bug Reports</h2>
@@ -365,6 +458,111 @@
         let adb = null;
         let currentReport = null;
         let currentLog = null;
+        
+        // Shell state
+        let commandHistory = [];
+        let historyIndex = -1;
+        let isExecuting = false;
+
+        // Shell functions
+        async function executeShellCommand() {
+            const input = document.getElementById('shellInput');
+            const output = document.getElementById('terminalOutput');
+            const command = input.value.trim();
+            
+            if (!command || isExecuting) return;
+            
+            // Add to history
+            if (commandHistory.length === 0 || commandHistory[commandHistory.length - 1] !== command) {
+                commandHistory.push(command);
+            }
+            historyIndex = commandHistory.length;
+            
+            // Display command
+            appendTerminal(`$ ${command}\n`, '#00ff00');
+            input.value = '';
+            input.disabled = true;
+            isExecuting = true;
+            
+            try {
+                const result = await adb.shell(command);
+                appendTerminal(result + '\n', '#d4d4d4');
+            } catch (error) {
+                appendTerminal(`Error: ${error}\n`, '#ff6b6b');
+            } finally {
+                input.disabled = false;
+                input.focus();
+                isExecuting = false;
+            }
+        }
+        
+        function executeQuickCommand(command) {
+            const input = document.getElementById('shellInput');
+            input.value = command;
+            executeShellCommand();
+        }
+        
+        function appendTerminal(text, color = '#d4d4d4') {
+            const output = document.getElementById('terminalOutput');
+            const span = document.createElement('span');
+            span.style.color = color;
+            span.textContent = text;
+            output.appendChild(span);
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        function clearTerminal() {
+            const output = document.getElementById('terminalOutput');
+            output.innerHTML = '$ <span style="color: #888;">Terminal cleared. Ready for commands.</span>';
+        }
+        
+        function handleShellKeydown(event) {
+            const input = document.getElementById('shellInput');
+            
+            // Enter key
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                executeShellCommand();
+                return;
+            }
+            
+            // Up arrow - previous command
+            if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                if (historyIndex > 0) {
+                    historyIndex--;
+                    input.value = commandHistory[historyIndex];
+                }
+                return;
+            }
+            
+            // Down arrow - next command
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                if (historyIndex < commandHistory.length - 1) {
+                    historyIndex++;
+                    input.value = commandHistory[historyIndex];
+                } else {
+                    historyIndex = commandHistory.length;
+                    input.value = '';
+                }
+                return;
+            }
+            
+            // Ctrl+C - clear input
+            if (event.ctrlKey && event.key === 'c') {
+                event.preventDefault();
+                input.value = '';
+                return;
+            }
+            
+            // Ctrl+L - clear terminal
+            if (event.ctrlKey && event.key === 'l') {
+                event.preventDefault();
+                clearTerminal();
+                return;
+            }
+        }
 
         async function main() {
             await init();
@@ -381,6 +579,11 @@
         function setupEventListeners() {
             document.getElementById('connectBtn').addEventListener('click', connect);
             document.getElementById('disconnectBtn').addEventListener('click', disconnect);
+            
+            // Diagnostics
+            document.getElementById('healthCheckBtn').addEventListener('click', performHealthCheck);
+            document.getElementById('cleanupStreamsBtn').addEventListener('click', cleanupStaleStreams);
+            document.getElementById('refreshDiagnosticsBtn').addEventListener('click', refreshDiagnostics);
             
             // Bugreport
             document.getElementById('bugreportLiteBtn').addEventListener('click', generateLiteBugreport);
@@ -402,6 +605,19 @@
             document.getElementById('screenshotBtn').addEventListener('click', captureScreenshot);
             document.getElementById('dumpStateBtn').addEventListener('click', dumpState);
             document.getElementById('packageListBtn').addEventListener('click', listPackages);
+            
+            // Shell
+            document.getElementById('shellInput').addEventListener('keydown', handleShellKeydown);
+            document.getElementById('shellExecuteBtn').addEventListener('click', executeShellCommand);
+            
+            // Shell quick commands
+            document.getElementById('shellCmdLs').addEventListener('click', () => executeQuickCommand('ls -la'));
+            document.getElementById('shellCmdPwd').addEventListener('click', () => executeQuickCommand('pwd'));
+            document.getElementById('shellCmdDf').addEventListener('click', () => executeQuickCommand('df -h'));
+            document.getElementById('shellCmdPs').addEventListener('click', () => executeQuickCommand('ps'));
+            document.getElementById('shellCmdVersion').addEventListener('click', () => executeQuickCommand('getprop | grep version'));
+            document.getElementById('shellCmdUname').addEventListener('click', () => executeQuickCommand('uname -a'));
+            document.getElementById('shellCmdClear').addEventListener('click', clearTerminal);
         }
 
         async function connect() {
@@ -410,6 +626,24 @@
                 await adb.connect();
                 updateStatus('connected', 'Connected');
                 enableButtons();
+                await refreshDiagnostics();
+                
+                // Show terminal welcome
+                clearTerminal();
+                appendTerminal('='.repeat(60) + '\n', '#00ff00');
+                appendTerminal('  Android Device Shell - WebADB\n', '#00ff00');
+                appendTerminal('='.repeat(60) + '\n', '#00ff00');
+                
+                try {
+                    const props = await adb.get_properties();
+                    appendTerminal(`\n Device: ${props['ro.product.model'] || 'Unknown'}\n`, '#d4d4d4');
+                    appendTerminal(` Android: ${props['ro.build.version.release'] || 'Unknown'}\n`, '#d4d4d4');
+                    appendTerminal(` Build: ${props['ro.build.id'] || 'Unknown'}\n\n`, '#d4d4d4');
+                } catch (e) {
+                    appendTerminal('\n Device connected!\n\n', '#d4d4d4');
+                }
+                
+                appendTerminal('$ ', '#00ff00');
             } catch (error) {
                 updateStatus('disconnected', 'Connection failed');
                 alert('Failed to connect: ' + error);
@@ -423,6 +657,92 @@
                 disableButtons();
             } catch (error) {
                 alert('Failed to disconnect: ' + error);
+            }
+        }
+
+        // Diagnostics functions
+        async function refreshDiagnostics() {
+            try {
+                const count = adb.active_stream_count();
+                document.getElementById('streamCount').textContent = count;
+                
+                const log = document.getElementById('diagnosticsLog');
+                log.style.display = 'block';
+                const time = new Date().toLocaleTimeString();
+                log.innerHTML = `<div style="color: #2196F3;">[${time}] Refreshed - ${count} active stream(s)</div>` + log.innerHTML;
+            } catch (error) {
+                showError('Refresh failed: ' + error);
+            }
+        }
+        
+        async function performHealthCheck() {
+            const btn = document.getElementById('healthCheckBtn');
+            const status = document.getElementById('healthStatus');
+            const log = document.getElementById('diagnosticsLog');
+            
+            try {
+                btn.disabled = true;
+                btn.textContent = 'Checking...';
+                status.textContent = '...';
+                status.style.color = '#FF9800';
+                
+                const healthy = await adb.health_check();
+                
+                const time = new Date().toLocaleTimeString();
+                log.style.display = 'block';
+                
+                if (healthy) {
+                    status.textContent = '✓ Healthy';
+                    status.style.color = '#4CAF50';
+                    log.innerHTML = `<div style="color: #4CAF50;">[${time}] Health check PASSED</div>` + log.innerHTML;
+                    showSuccess('Device is responding');
+                } else {
+                    status.textContent = '✗ Unhealthy';
+                    status.style.color = '#f44336';
+                    log.innerHTML = `<div style="color: #f44336;">[${time}] Health check FAILED</div>` + log.innerHTML;
+                    showWarning('Device not responding properly');
+                }
+                
+                await refreshDiagnostics();
+            } catch (error) {
+                status.textContent = '✗ Error';
+                status.style.color = '#f44336';
+                showError('Health check error: ' + error);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Check Health';
+            }
+        }
+        
+        async function cleanupStaleStreams() {
+            const btn = document.getElementById('cleanupStreamsBtn');
+            const countEl = document.getElementById('cleanedCount');
+            const log = document.getElementById('diagnosticsLog');
+            
+            try {
+                btn.disabled = true;
+                btn.textContent = 'Cleaning...';
+                
+                const cleaned = await adb.cleanup_stale_streams();
+                const total = parseInt(countEl.textContent) + cleaned;
+                countEl.textContent = total;
+                
+                const time = new Date().toLocaleTimeString();
+                log.style.display = 'block';
+                log.innerHTML = `<div style="color: #FF9800;">[${time}] Cleaned ${cleaned} stale stream(s)</div>` + log.innerHTML;
+                
+                if (cleaned > 0) {
+                    showSuccess(`Cleaned ${cleaned} stale stream(s)`);
+                } else {
+                    showSuccess('No stale streams found');
+                }
+                
+                await refreshDiagnostics();
+            } catch (error) {
+                showError('Cleanup failed: ' + error);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Cleanup Stale';
             }
         }
 
@@ -557,6 +877,8 @@
                     const filename = path.split('/').pop();
                     const isZip = path.endsWith('.zip');
                     const icon = isZip ? '📦' : '📄';
+                    // Escape HTML attributes
+                    const escapedPath = path.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
                     
                     html += `
                         <div style="background: #2a2a2a; margin: 10px 0; padding: 15px; border-radius: 8px; border-left: 4px solid #667eea;">
@@ -568,7 +890,7 @@
                             </div>
                             <button 
                                 class="download-bugreport-btn"
-                                data-path="${path}"
+                                data-path="${escapedPath}"
                                 style="background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; font-size: 14px;">
                                 Download
                             </button>
@@ -581,7 +903,9 @@
                 // Attach event listeners to download buttons
                 document.querySelectorAll('.download-bugreport-btn').forEach(btn => {
                     btn.addEventListener('click', function() {
-                        const path = this.getAttribute('data-path');
+                        let path = this.getAttribute('data-path');
+                        // Decode HTML entities
+                        path = path.replace(/&quot;/g, '"').replace(/&#39;/g, "'");
                         downloadExistingBugreport(path);
                     });
                 });
@@ -862,6 +1186,11 @@ Modified: ${new Date(stat.mtime * 1000).toLocaleString()}`;
                 }
             });
             document.getElementById('connectBtn').disabled = true;
+            
+            // Enable shell
+            document.getElementById('shellInput').disabled = false;
+            document.getElementById('shellExecuteBtn').disabled = false;
+            document.getElementById('shellInput').focus();
         }
 
         function disableButtons() {
@@ -869,6 +1198,10 @@ Modified: ${new Date(stat.mtime * 1000).toLocaleString()}`;
                 btn.disabled = true;
             });
             document.getElementById('connectBtn').disabled = false;
+            
+            // Disable shell
+            document.getElementById('shellInput').disabled = true;
+            document.getElementById('shellExecuteBtn').disabled = true;
         }
 
         function formatBytes(bytes) {

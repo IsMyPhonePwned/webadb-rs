@@ -166,7 +166,7 @@ impl Adb {
     /// Disconnect from device
     #[wasm_bindgen]
     pub async fn disconnect(&mut self) -> Result<(), JsValue> {
-        if let Some(client) = &self.client {
+        if let Some(client) = self.client.as_mut() {
             client
                 .disconnect()
                 .await
@@ -366,6 +366,46 @@ impl Adb {
             .collect();
 
         Ok(serde_wasm_bindgen::to_value(&entries_js)?)
+    }
+    
+    /// Get active stream count
+    #[wasm_bindgen]
+    pub fn active_stream_count(&self) -> usize {
+        self.client
+            .as_ref()
+            .map(|c| c.active_stream_count())
+            .unwrap_or(0)
+    }
+    
+    /// Cleanup stale streams (>30 seconds old)
+    #[wasm_bindgen]
+    pub async fn cleanup_stale_streams(&mut self) -> Result<usize, JsValue> {
+        let client = self.client.as_mut()
+            .ok_or_else(|| JsValue::from_str("Not connected"))?;
+        
+        Ok(client.cleanup_stale_streams().await)
+    }
+    
+    /// Check device health
+    #[wasm_bindgen]
+    pub async fn health_check(&mut self) -> Result<bool, JsValue> {
+        let client = self.client.as_mut()
+            .ok_or_else(|| JsValue::from_str("Not connected"))?;
+        
+        client.health_check()
+            .await
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+    
+    /// Execute shell command with timeout
+    #[wasm_bindgen]
+    pub async fn shell_with_timeout(&mut self, command: String, timeout_ms: u32) -> Result<String, JsValue> {
+        let client = self.client.as_mut()
+            .ok_or_else(|| JsValue::from_str("Not connected"))?;
+        
+        client.shell_with_timeout(&command, timeout_ms)
+            .await
+            .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 }
 
