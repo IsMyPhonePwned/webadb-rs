@@ -1,10 +1,9 @@
-use crate::auth::AdbKeyPair;
-use crate::protocol::{
+use super::auth::AdbKeyPair;
+use super::protocol::{
     AdbError, Command, ConnectionState, Message, Stream, ADB_VERSION, AuthType,
 };
-use crate::transport::WebUsbTransport;
+use super::transport::WebUsbTransport;
 use std::collections::HashMap;
-use wasm_bindgen::prelude::*;
 
 /// Stream with activity tracking
 #[derive(Clone)]
@@ -169,7 +168,7 @@ impl AdbClient {
                 self.transport.send_message(&message, &signature).await?;
 
                 // Wait for response
-                let (response, response_data) = self.transport.recv_message().await?;
+                let (response, _response_data) = self.transport.recv_message().await?;
 
                 match response.command {
                     Command::Cnxn => {

@@ -1,11 +1,10 @@
-use crate::protocol::{AdbError, Message};
-use wasm_bindgen::prelude::*;
+use super::protocol::{AdbError, Message};
+
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
-    Usb, UsbDevice, UsbDeviceFilter, UsbDeviceRequestOptions, UsbDirection,
+    UsbDevice, UsbDeviceFilter, UsbDeviceRequestOptions, UsbDirection,
     UsbInTransferResult, UsbOutTransferResult, UsbTransferStatus,
-    UsbInterface, UsbAlternateInterface, UsbEndpoint,
 };
 
 /// ADB USB interface class/subclass/protocol
@@ -36,7 +35,7 @@ impl WebUsbTransport {
         filter.set_subclass_code(ADB_SUBCLASS);
         filter.set_protocol_code(ADB_PROTOCOL);
 
-        let mut filters = js_sys::Array::new();
+        let filters = js_sys::Array::new();
         filters.push(&filter);
 
         let options = UsbDeviceRequestOptions::new(&filters);

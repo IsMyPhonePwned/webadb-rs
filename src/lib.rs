@@ -6,7 +6,7 @@
 //! # Example
 //!
 //! ```javascript
-//! import init, { Adb } from './pkg/rust_webadb.js';
+//! import init, { Adb } from './pkg/webadb_rs.js';
 //!
 //! async function main() {
 //!     await init();

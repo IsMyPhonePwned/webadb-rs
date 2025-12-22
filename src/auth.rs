@@ -1,4 +1,4 @@
-use crate::protocol::AdbError;
+use super::protocol::AdbError;
 use rsa::{
     pkcs1::{DecodeRsaPrivateKey, EncodeRsaPrivateKey, EncodeRsaPublicKey},
     pkcs8::DecodePrivateKey,
@@ -100,7 +100,6 @@ impl AdbKeyPair {
 #[cfg(target_arch = "wasm32")]
 pub mod storage {
     use super::*;
-    use wasm_bindgen::prelude::*;
 
     const STORAGE_KEY: &str = "adb_private_key";
 

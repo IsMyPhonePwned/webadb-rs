@@ -1,4 +1,4 @@
-use crate::protocol::AdbError;
+use super::protocol::AdbError;
 
 /// Sync protocol commands (for file operations)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

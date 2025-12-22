@@ -1,9 +1,9 @@
 use wasm_bindgen::prelude::*;
-use crate::auth::{AdbKeyPair, storage};
-use crate::client::AdbClient;
-use crate::transport::WebUsbTransport;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+
+use super::auth::{AdbKeyPair, storage};
+use super::client::AdbClient;
+use super::transport::WebUsbTransport;
 
 /// Initialize the WASM module
 #[wasm_bindgen(start)]
