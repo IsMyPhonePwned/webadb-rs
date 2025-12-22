@@ -5,6 +5,7 @@ edition = "2021"
 authors = ["ping2a"]
 
 [lib]
+path = "src/lib.rs"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
@@ -14,7 +15,7 @@ wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
 
 # WebUSB support
-web-sys = { version = "0.3", features = [
+web-sys = { version = "0.3.83", features = [
     "console",
     "Window",
     "Navigator",
