@@ -47,6 +47,7 @@ cd rust-webadb
 # Or manually:
 rm -rf target/ pkg/
 wasm-pack build --target web --release
+wasm-pack build --dev --target web --features bugreport-analysis 
 ```
 
 The compiled WASM module will be in the `pkg/` directory.

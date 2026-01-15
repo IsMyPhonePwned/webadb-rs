@@ -452,7 +452,8 @@ impl Adb {
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
-#[wasm_bindgen]
+
+    #[wasm_bindgen]
     #[cfg(feature = "bugreport-analysis")]
     pub async fn analyze_bugreport(&self, data: Vec<u8>) -> Result<JsValue, JsValue> {
         use bugreport_extractor_library::run_parsers_concurrently;
@@ -545,10 +546,12 @@ impl Adb {
             battery_info: Option<BatteryInfoSummary>,
             process_count: usize,
             package_count: usize,
-            logcat_lines: usize,
             has_security_analysis: bool,
             analysis_complete: bool,
-            raw_json: Vec<serde_json::Value>,
+            packages: Vec<PackageInstallationInfo>,
+            processes: Vec<ProcessInfo>,
+            battery_apps: Vec<BatteryAppInfo>,
+            package_details: Vec<PackageDetails>,
         }
         
         #[derive(Serialize, Clone)]
@@ -568,13 +571,88 @@ impl Adb {
             voltage: f32,
         }
         
+        #[derive(Serialize, Clone)]
+        struct PackageInstallationInfo {
+            package_name: String,
+            installer: String,
+            timestamp: String,
+            version_code: Option<u64>,
+            success: bool,
+            duration_seconds: Option<f64>,
+            staged_dir: Option<String>,
+        }
+        
+        #[derive(Serialize, Clone)]
+        struct ProcessInfo {
+            pid: u32,
+            name: String,
+            user: String,
+            cpu_percent: f64,
+            memory: String,
+            virtual_memory: String,
+            policy: String,
+        }
+        
+        #[derive(Serialize, Clone)]
+        struct BatteryAppInfo {
+            package_name: String,
+            uid: u32,
+            cpu_system_time_ms: u64,
+            cpu_user_time_ms: u64,
+            total_cpu_time_ms: u64,
+            network_rx_mobile: u64,
+            network_rx_wifi: u64,
+            network_tx_mobile: u64,
+            network_tx_wifi: u64,
+            total_network_bytes: u64,
+            total_wakelock_time_ms: u64,
+            total_job_time_ms: u64,
+            foreground_service_time_ms: u64,
+            total_job_count: u32,
+        }
+        
+        #[derive(Serialize, Clone)]
+        struct PackageUserInfo {
+            user_id: Option<u32>,
+            first_install_time: Option<String>,
+            last_disabled_caller: Option<String>,
+            data_dir: Option<String>,
+            enabled: Option<u32>,
+            installed: Option<bool>,
+        }
+        
+        #[derive(Serialize, Clone)]
+        struct PackageDetails {
+            package_name: String,
+            version_code: Option<u64>,
+            version_name: Option<String>,
+            app_id: Option<u32>,
+            target_sdk: Option<u32>,
+            min_sdk: Option<u32>,
+            code_path: Option<String>,
+            resource_path: Option<String>,
+            flags: Option<String>,
+            pkg_flags: Option<String>,
+            primary_cpu_abi: Option<String>,
+            installer_package_name: Option<String>,
+            last_update_time: Option<String>,
+            time_stamp: Option<String>,
+            category: Option<String>,
+            install_logs: Vec<serde_json::Value>,
+            user_count: usize,
+            users: Vec<PackageUserInfo>,
+        }
+        
         // Extract data from results
         log::info!("📤 [ANALYZE] Extracting data from parser results...");
         let mut device_info = None;
         let mut battery_info = None;
         let mut process_count = 0;
         let mut package_count = 0;
-        let mut raw_json = Vec::new();
+        let mut packages = Vec::new();
+        let mut processes: Vec<ProcessInfo> = Vec::new();
+        let mut battery_apps: Vec<BatteryAppInfo> = Vec::new();
+        let mut package_details: Vec<PackageDetails> = Vec::new();
         
         for (parser_type, result, duration) in results {
             log::info!("  🔍 [ANALYZE] Processing {:?} result (took {:?})", parser_type, duration);
@@ -583,80 +661,58 @@ impl Adb {
                 Ok(json_output) => {
                     log::info!("  ✅ [ANALYZE] {:?} parser succeeded", parser_type);
                     
-                    // Store the raw JSON output for the frontend
-                    // PackageParser already returns {install_logs: [...], client_pids: [...]}
-                    // so we don't need to wrap it
-                    if parser_type == ParserType::Package {
-                        log::info!("  📦 [ANALYZE] Package parser output structure:");
-                        log::info!("    Type checks: is_object={}, is_array={}, is_null={}", 
-                            json_output.is_object(), json_output.is_array(), json_output.is_null());
-                        
-                        if let Some(obj) = json_output.as_object() {
-                            let keys: Vec<_> = obj.keys().collect();
-                            log::info!("    Keys: {:?}", keys);
-                            
-                            for key in &keys {
-                                if let Some(value) = obj.get(*key) {
-                                    if let Some(arr) = value.as_array() {
-                                        log::info!("    {} is an array with {} entries", key, arr.len());
-                                    } else if let Some(obj2) = value.as_object() {
-                                        log::info!("    {} is an object with {} keys", key, obj2.len());
-                                    } else {
-                                        log::info!("    {} is a scalar value", key);
-                                    }
-                                }
-                            }
-                            
-                            if let Some(install_logs) = obj.get("install_logs") {
-                                if let Some(arr) = install_logs.as_array() {
-                                    log::info!("    ✅ install_logs is an array with {} entries", arr.len());
-                                } else {
-                                    log::warn!("    ⚠️ install_logs is not an array!");
-                                }
-                            } else {
-                                log::warn!("    ⚠️ No install_logs key found!");
-                            }
-                        } else if let Some(arr) = json_output.as_array() {
-                            log::warn!("    ⚠️ PackageParser returned an array with {} elements instead of an object!", arr.len());
-                        } else {
-                            log::error!("    ❌ PackageParser returned unexpected type (not object or array)!");
-                        }
-                    }
-                    
-                    raw_json.push(json_output.clone());
                     
                     match parser_type {
                         ParserType::Header => {
                             log::info!("    📝 [ANALYZE] Extracting device info from Header...");
                             // Extract device info from header
                             if let Some(obj) = json_output.as_object() {
-                                let manufacturer = obj.get("manufacturer")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("Unknown")
-                                    .to_string();
-                                let model = obj.get("model")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("Unknown")
-                                    .to_string();
-                                let android_version = obj.get("android_version")
+                                // Extract Android SDK version
+                                let android_version = obj.get("Android SDK version")
                                     .and_then(|v| v.as_str())
                                     .unwrap_or("Unknown")
                                     .to_string();
                                 
-                                log::info!("    📱 [ANALYZE] Device: {} {} (Android {})", manufacturer, model, android_version);
+                                // Extract Build ID
+                                let build_id = obj.get("Build")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("Unknown")
+                                    .to_string();
+                                
+                                // Extract Kernel version (extract version from full kernel string)
+                                // Format: "Linux version 6.6.50-android15-8-abA346BXXSBDYI1-4k (kleaf@build-host) ..."
+                                let kernel_version = extract_kernel_version(
+                                    obj.get("Kernel")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("Unknown")
+                                );
+                                
+                                // Extract manufacturer and model from Build fingerprint
+                                // Format: 'samsung/a34xeea/a34x:15/AP3A.240905.015.A2/A346BXXSBDYI1:user/release-keys'
+                                let (manufacturer, model) = obj.get("Build fingerprint")
+                                    .and_then(|v| v.as_str())
+                                    .map(|fp| extract_manufacturer_model(fp))
+                                    .unwrap_or_else(|| {
+                                        // Fallback: try to extract from other fields
+                                        let mfr = obj.get("manufacturer")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("Unknown")
+                                            .to_string();
+                                        let mdl = obj.get("model")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("Unknown")
+                                            .to_string();
+                                        (mfr, mdl)
+                                    });
+                                
+                                log::info!("    📱 [ANALYZE] Device: {} {} (Android SDK {})", manufacturer, model, android_version);
                                 
                                 device_info = Some(DeviceInfoSummary {
                                     manufacturer,
                                     model,
                                     android_version,
-                                    build_id: obj.get("build_id")
-                                        .and_then(|v| v.as_str())
-                                        .unwrap_or("Unknown")
-                                        .to_string(),
-                                    kernel_version: obj.get("kernel_version")
-                                        .and_then(|v| v.as_str())
-                                        .unwrap_or("Unknown")
-                                        .to_string(),
+                                    build_id,
+                                    kernel_version,
                                 });
                                 log::info!("    ✅ [ANALYZE] Device info extracted successfully");
                             } else {
@@ -665,38 +721,100 @@ impl Adb {
                         },
                         ParserType::Battery => {
                             log::info!("    🔋 [ANALYZE] Extracting battery info...");
-                            // Extract battery info
+                            // Extract battery info - this parser returns app battery stats
                             if let Some(arr) = json_output.as_array() {
                                 log::info!("    📊 [ANALYZE] Battery array has {} entries", arr.len());
-                                if let Some(first) = arr.first() {
-                                    if let Some(obj) = first.as_object() {
-                                        let level = obj.get("battery_level")
-                                            .and_then(|v| v.as_f64())
-                                            .unwrap_or(0.0) as f32;
-                                        let health = obj.get("health")
+                                
+                                // Transform battery app data into BatteryAppInfo structs
+                                for app_json in arr {
+                                    if let Some(app_obj) = app_json.as_object() {
+                                        let package_name = app_obj.get("package_name")
                                             .and_then(|v| v.as_str())
-                                            .unwrap_or("Unknown")
+                                            .unwrap_or("")
+                                            .trim_matches('"')
+                                            .trim()
                                             .to_string();
                                         
-                                        log::info!("    🔋 [ANALYZE] Battery: {}%, Health: {}", level, health);
+                                        // Skip entries with empty package names (system-level entries)
+                                        if package_name.is_empty() {
+                                            continue;
+                                        }
                                         
-                                        battery_info = Some(BatteryInfoSummary {
-                                            level,
-                                            health,
-                                            temperature: obj.get("temperature")
-                                                .and_then(|v| v.as_f64())
-                                                .unwrap_or(0.0) as f32,
-                                            voltage: obj.get("voltage")
-                                                .and_then(|v| v.as_f64())
-                                                .unwrap_or(0.0) as f32,
+                                        let uid = app_obj.get("uid")
+                                            .and_then(|v| v.as_u64())
+                                            .map(|v| v as u32)
+                                            .unwrap_or(0);
+                                        
+                                        let cpu_system_time_ms = app_obj.get("cpu_system_time_ms")
+                                            .and_then(|v| v.as_u64())
+                                            .unwrap_or(0);
+                                        
+                                        let cpu_user_time_ms = app_obj.get("cpu_user_time_ms")
+                                            .and_then(|v| v.as_u64())
+                                            .unwrap_or(0);
+                                        
+                                        let total_cpu_time_ms = cpu_system_time_ms + cpu_user_time_ms;
+                                        
+                                        let network_rx_mobile = app_obj.get("network_rx_mobile")
+                                            .and_then(|v| v.as_u64())
+                                            .unwrap_or(0);
+                                        
+                                        let network_rx_wifi = app_obj.get("network_rx_wifi")
+                                            .and_then(|v| v.as_u64())
+                                            .unwrap_or(0);
+                                        
+                                        let network_tx_mobile = app_obj.get("network_tx_mobile")
+                                            .and_then(|v| v.as_u64())
+                                            .unwrap_or(0);
+                                        
+                                        let network_tx_wifi = app_obj.get("network_tx_wifi")
+                                            .and_then(|v| v.as_u64())
+                                            .unwrap_or(0);
+                                        
+                                        let total_network_bytes = app_obj.get("total_network_bytes")
+                                            .and_then(|v| v.as_u64())
+                                            .unwrap_or(0);
+                                        
+                                        let total_wakelock_time_ms = app_obj.get("total_wakelock_time_ms")
+                                            .and_then(|v| v.as_u64())
+                                            .unwrap_or(0);
+                                        
+                                        let total_job_time_ms = app_obj.get("total_job_time_ms")
+                                            .and_then(|v| v.as_u64())
+                                            .unwrap_or(0);
+                                        
+                                        let foreground_service_time_ms = app_obj.get("foreground_service_time_ms")
+                                            .and_then(|v| v.as_u64())
+                                            .unwrap_or(0);
+                                        
+                                        let total_job_count = app_obj.get("total_job_count")
+                                            .and_then(|v| v.as_u64())
+                                            .map(|v| v as u32)
+                                            .unwrap_or(0);
+                                        
+                                        battery_apps.push(BatteryAppInfo {
+                                            package_name,
+                                            uid,
+                                            cpu_system_time_ms,
+                                            cpu_user_time_ms,
+                                            total_cpu_time_ms,
+                                            network_rx_mobile,
+                                            network_rx_wifi,
+                                            network_tx_mobile,
+                                            network_tx_wifi,
+                                            total_network_bytes,
+                                            total_wakelock_time_ms,
+                                            total_job_time_ms,
+                                            foreground_service_time_ms,
+                                            total_job_count,
                                         });
-                                        log::info!("    ✅ [ANALYZE] Battery info extracted successfully");
-                                    } else {
-                                        log::warn!("    ⚠️ [ANALYZE] Battery array first element is not an object");
                                     }
-                                } else {
-                                    log::warn!("    ⚠️ [ANALYZE] Battery array is empty");
                                 }
+                                
+                                log::info!("    ✅ [ANALYZE] Transformed {} battery app entries into BatteryAppInfo", battery_apps.len());
+                                
+                                // Note: BatteryInfoSummary (level, health, temperature, voltage) 
+                                // is not available in this parser output - it may come from a different source
                             } else {
                                 log::warn!("    ⚠️ [ANALYZE] Battery result is not an array");
                             }
@@ -706,6 +824,65 @@ impl Adb {
                             if let Some(arr) = json_output.as_array() {
                                 process_count = arr.len();
                                 log::info!("    ✅ [ANALYZE] Found {} processes", process_count);
+                                
+                                // Transform process data into ProcessInfo structs
+                                for proc_json in arr {
+                                    if let Some(proc_obj) = proc_json.as_object() {
+                                        let pid = proc_obj.get("pid")
+                                            .and_then(|v| v.as_u64())
+                                            .map(|v| v as u32)
+                                            .unwrap_or(0);
+                                        
+                                        let name = proc_obj.get("cmd")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("Unknown")
+                                            .to_string();
+                                        
+                                        let user = proc_obj.get("user")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("Unknown")
+                                            .to_string();
+                                        
+                                        // Calculate total CPU from all threads
+                                        let cpu_percent = proc_obj.get("threads")
+                                            .and_then(|threads| threads.as_array())
+                                            .map(|threads| {
+                                                threads.iter()
+                                                    .filter_map(|t| t.as_object()
+                                                        .and_then(|t_obj| t_obj.get("cpu_percent"))
+                                                        .and_then(|cp| cp.as_f64()))
+                                                    .sum::<f64>()
+                                            })
+                                            .unwrap_or(0.0);
+                                        
+                                        let memory = proc_obj.get("res")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("0")
+                                            .to_string();
+                                        
+                                        let virtual_memory = proc_obj.get("virt")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("0")
+                                            .to_string();
+                                        
+                                        let policy = proc_obj.get("pcy")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("Unknown")
+                                            .to_string();
+                                        
+                                        processes.push(ProcessInfo {
+                                            pid,
+                                            name,
+                                            user,
+                                            cpu_percent,
+                                            memory,
+                                            virtual_memory,
+                                            policy,
+                                        });
+                                    }
+                                }
+                                
+                                log::info!("    ✅ [ANALYZE] Transformed {} processes into ProcessInfo", processes.len());
                             } else {
                                 log::warn!("    ⚠️ [ANALYZE] Process result is not an array");
                             }
@@ -713,47 +890,328 @@ impl Adb {
                         ParserType::Package => {
                             log::info!("    📦 [ANALYZE] Extracting package info...");
                             
-                            // Log the type and a sample of the data
-                            log::info!("    📦 [ANALYZE] Package data type: is_object={}, is_array={}, is_null={}, is_string={}", 
-                                json_output.is_object(), 
-                                json_output.is_array(),
-                                json_output.is_null(),
-                                json_output.is_string()
-                            );
-                            
-                            // Log the actual value (truncated)
-                            let json_str = json_output.to_string();
-                            let preview = if json_str.len() > 500 {
-                                format!("{}... (truncated, total {} chars)", &json_str[..500], json_str.len())
-                            } else {
-                                json_str
-                            };
-                            log::info!("    📦 [ANALYZE] Package data preview: {}", preview);
-                            
-                            // PackageParser returns {install_logs: [...], client_pids: [...]}
-                            if let Some(obj) = json_output.as_object() {
+                            // Helper function to parse install logs from an object
+                            let mut parse_install_logs_from_obj = |obj: &serde_json::Map<String, serde_json::Value>| -> Option<usize> {
                                 log::info!("    📦 [ANALYZE] Package object has keys: {:?}", obj.keys().collect::<Vec<_>>());
                                 if let Some(install_logs) = obj.get("install_logs") {
                                     if let Some(arr) = install_logs.as_array() {
-                                        package_count = arr.len();
-                                        log::info!("    ✅ [ANALYZE] Found {} install log entries", package_count);
-                                        if package_count > 0 {
-                                            log::info!("    📦 [ANALYZE] First install log entry: {:?}", 
-                                                arr.first().map(|v| v.to_string().chars().take(200).collect::<String>()));
+                                        let log_count = arr.len();
+                                        log::info!("    ✅ [ANALYZE] Found {} install log entries", log_count);
+                                        
+                                        // Parse install logs to extract package installation information
+                                        let mut install_map: std::collections::HashMap<String, serde_json::Value> = std::collections::HashMap::new();
+                                        
+                                        for log_entry in arr {
+                                            if let Some(log_obj) = log_entry.as_object() {
+                                                if let Some(event_type) = log_obj.get("event_type").and_then(|v| v.as_str()) {
+                                                    if event_type == "START_INSTALL" {
+                                                        // Store the start install event
+                                                        if let Some(observer) = log_obj.get("observer").and_then(|v| v.as_str()) {
+                                                            install_map.insert(observer.to_string(), log_entry.clone());
+                                                        }
+                                                    } else if event_type == "INSTALL_RESULT" {
+                                                        // Match with START_INSTALL and create package info
+                                                        if let Some(message) = log_obj.get("message").and_then(|v| v.as_str()) {
+                                                            // Extract observer ID from message like "result of install: 1{39329309}"
+                                                            if let Some(observer_start) = message.find('{') {
+                                                                if let Some(observer_end) = message[observer_start + 1..].find('}') {
+                                                                    let observer = &message[observer_start + 1..observer_start + 1 + observer_end];
+                                                                    if let Some(start_install) = install_map.remove(observer) {
+                                                                        if let Some(start_obj) = start_install.as_object() {
+                                                                            let package_name = start_obj.get("pkg")
+                                                                                .and_then(|v| v.as_str())
+                                                                                .unwrap_or("Unknown")
+                                                                                .to_string();
+                                                                            let installer = start_obj.get("request_from")
+                                                                                .and_then(|v| v.as_str())
+                                                                                .unwrap_or("Unknown")
+                                                                                .to_string();
+                                                                            let timestamp = start_obj.get("timestamp")
+                                                                                .and_then(|v| v.as_str())
+                                                                                .unwrap_or("")
+                                                                                .to_string();
+                                                                            let version_code = start_obj.get("versionCode")
+                                                                                .and_then(|v| v.as_u64());
+                                                                            let staged_dir = start_obj.get("stagedDir")
+                                                                                .and_then(|v| v.as_str())
+                                                                                .map(|s| s.to_string());
+                                                                            
+                                                                            // Check if installation was successful (message contains "result of install: 1")
+                                                                            let success = message.contains("result of install: 1");
+                                                                            
+                                                                            // Calculate duration if both timestamps are available
+                                                                            // Parse timestamps (format: "2024-09-11 10:27:49.950")
+                                                                            let duration_seconds = if let Some(result_timestamp) = log_obj.get("timestamp").and_then(|v| v.as_str()) {
+                                                                                // Parse timestamps to calculate duration
+                                                                                // Format: "YYYY-MM-DD HH:MM:SS.mmm" or "YYYY-MM-DD HH:MM:SS"
+                                                                                let parse_to_seconds = |ts: &str| -> Option<f64> {
+                                                                                    // Split into date and time parts
+                                                                                    let parts: Vec<&str> = ts.trim().split(' ').collect();
+                                                                                    if parts.len() >= 2 {
+                                                                                        let date_parts: Vec<&str> = parts[0].split('-').collect();
+                                                                                        let time_parts: Vec<&str> = parts[1].split(':').collect();
+                                                                                        if date_parts.len() == 3 && time_parts.len() >= 3 {
+                                                                                            if let (Ok(year), Ok(month), Ok(day), Ok(hour), Ok(min), Ok(sec)) = (
+                                                                                                date_parts[0].parse::<i32>(),
+                                                                                                date_parts[1].parse::<u32>(),
+                                                                                                date_parts[2].parse::<u32>(),
+                                                                                                time_parts[0].parse::<u32>(),
+                                                                                                time_parts[1].parse::<u32>(),
+                                                                                                time_parts[2].split('.').next().unwrap_or("0").parse::<u32>(),
+                                                                                            ) {
+                                                                                                // Convert to total seconds since 2000-01-01 (arbitrary epoch for relative calculation)
+                                                                                                // This is just for calculating differences, not absolute time
+                                                                                                let days = (year - 2000) * 365 + (year - 1999) / 4 + 
+                                                                                                          ((month - 1) as i32 * 30) + (day as i32);
+                                                                                                let total_seconds = (days as f64 * 86400.0) + 
+                                                                                                                   (hour as f64 * 3600.0) + 
+                                                                                                                   (min as f64 * 60.0) + 
+                                                                                                                   (sec as f64);
+                                                                                                return Some(total_seconds);
+                                                                                            }
+                                                                                        }
+                                                                                    }
+                                                                                    None
+                                                                                };
+                                                                                
+                                                                                if let (Some(start_ts), Some(end_ts)) = (parse_to_seconds(&timestamp), parse_to_seconds(result_timestamp)) {
+                                                                                    let diff = end_ts - start_ts;
+                                                                                    if diff >= 0.0 {
+                                                                                        Some(diff)
+                                                                                    } else {
+                                                                                        None
+                                                                                    }
+                                                                                } else {
+                                                                                    None
+                                                                                }
+                                                                            } else {
+                                                                                None
+                                                                            };
+                                                                            
+                                                                            packages.push(PackageInstallationInfo {
+                                                                                package_name,
+                                                                                installer,
+                                                                                timestamp,
+                                                                                version_code,
+                                                                                success,
+                                                                                duration_seconds,
+                                                                                staged_dir,
+                                                                            });
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
+                                        
+                                        log::info!("    ✅ [ANALYZE] Parsed {} package installations from {} log entries", packages.len(), log_count);
+                                        Some(log_count)
                                     } else {
                                         log::warn!("    ⚠️ [ANALYZE] install_logs is not an array: {:?}", install_logs);
+                                        None
                                     }
                                 } else {
                                     log::warn!("    ⚠️ [ANALYZE] No install_logs key in package data. Available keys: {:?}", obj.keys().collect::<Vec<_>>());
+                                    None
+                                }
+                            };
+                            
+                            // PackageParser may return {packages: [...], install_logs: [...], client_pids: [...]} as object or wrapped in array
+                            // First, check for the new "packages" array
+                            let mut parse_packages_array = |obj: &serde_json::Map<String, serde_json::Value>| {
+                                if let Some(packages_arr) = obj.get("packages").and_then(|v| v.as_array()) {
+                                    log::info!("    📦 [ANALYZE] Found packages array with {} entries", packages_arr.len());
+                                    
+                                    for pkg_json in packages_arr {
+                                        if let Some(pkg_obj) = pkg_json.as_object() {
+                                            let package_name = pkg_obj.get("package_name")
+                                                .or_else(|| pkg_obj.get("pkg"))
+                                                .and_then(|v| v.as_str())
+                                                .unwrap_or("Unknown")
+                                                .to_string();
+                                            
+                                            let version_code = pkg_obj.get("versionCode")
+                                                .and_then(|v| v.as_u64());
+                                            
+                                            let version_name = pkg_obj.get("versionName")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string());
+                                            
+                                            let app_id = pkg_obj.get("appId")
+                                                .and_then(|v| v.as_u64())
+                                                .map(|v| v as u32);
+                                            
+                                            let target_sdk = pkg_obj.get("targetSdk")
+                                                .and_then(|v| v.as_u64())
+                                                .map(|v| v as u32);
+                                            
+                                            let min_sdk = pkg_obj.get("minSdk")
+                                                .and_then(|v| v.as_u64())
+                                                .map(|v| v as u32);
+                                            
+                                            let code_path = pkg_obj.get("codePath")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string());
+                                            
+                                            let resource_path = pkg_obj.get("resourcePath")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string());
+                                            
+                                            let flags = pkg_obj.get("flags")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string());
+                                            
+                                            let pkg_flags = pkg_obj.get("pkgFlags")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string());
+                                            
+                                            let primary_cpu_abi = pkg_obj.get("primaryCpuAbi")
+                                                .and_then(|v| v.as_str())
+                                                .filter(|s| s != &"null")
+                                                .map(|s| s.to_string());
+                                            
+                                            let installer_package_name = pkg_obj.get("installerPackageName")
+                                                .and_then(|v| v.as_str())
+                                                .filter(|s| s != &"null")
+                                                .map(|s| s.to_string());
+                                            
+                                            let last_update_time = pkg_obj.get("lastUpdateTime")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string());
+                                            
+                                            let time_stamp = pkg_obj.get("timeStamp")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string());
+                                            
+                                            let category = pkg_obj.get("category")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string());
+                                            
+                                            // Extract install_logs array
+                                            let install_logs = pkg_obj.get("install_logs")
+                                                .and_then(|v| v.as_array())
+                                                .map(|arr| arr.clone())
+                                                .unwrap_or_default();
+                                            
+                                            // Parse users array
+                                            let mut users_info = Vec::new();
+                                            if let Some(users_arr) = pkg_obj.get("users").and_then(|v| v.as_array()) {
+                                                for user_json in users_arr {
+                                                    if let Some(user_obj) = user_json.as_object() {
+                                                        let user_id = user_obj.get("user_id")
+                                                            .and_then(|v| v.as_u64())
+                                                            .map(|v| v as u32);
+                                                        
+                                                        let first_install_time = user_obj.get("firstInstallTime")
+                                                            .and_then(|v| v.as_str())
+                                                            .map(|s| s.to_string());
+                                                        
+                                                        let last_disabled_caller = user_obj.get("lastDisabledCaller")
+                                                            .and_then(|v| v.as_str())
+                                                            .filter(|s| s != &"null" && !s.is_empty())
+                                                            .map(|s| s.to_string());
+                                                        
+                                                        let data_dir = user_obj.get("dataDir")
+                                                            .and_then(|v| v.as_str())
+                                                            .map(|s| s.to_string());
+                                                        
+                                                        let enabled = user_obj.get("enabled")
+                                                            .and_then(|v| v.as_u64())
+                                                            .map(|v| v as u32);
+                                                        
+                                                        let installed = user_obj.get("installed")
+                                                            .and_then(|v| v.as_bool());
+                                                        
+                                                        users_info.push(PackageUserInfo {
+                                                            user_id,
+                                                            first_install_time,
+                                                            last_disabled_caller,
+                                                            data_dir,
+                                                            enabled,
+                                                            installed,
+                                                        });
+                                                    }
+                                                }
+                                            }
+                                            
+                                            let user_count = users_info.len();
+                                            
+                                            package_details.push(PackageDetails {
+                                                package_name,
+                                                version_code,
+                                                version_name,
+                                                app_id,
+                                                target_sdk,
+                                                min_sdk,
+                                                code_path,
+                                                resource_path,
+                                                flags,
+                                                pkg_flags,
+                                                primary_cpu_abi,
+                                                installer_package_name,
+                                                last_update_time,
+                                                time_stamp,
+                                                category,
+                                                install_logs,
+                                                user_count,
+                                                users: users_info,
+                                            });
+                                        }
+                                    }
+                                    
+                                    log::info!("    ✅ [ANALYZE] Parsed {} package details", package_details.len());
+                                    Some(packages_arr.len())
+                                } else {
+                                    None
+                                }
+                            };
+                            
+                            // Try to parse packages array first
+                            // The packages key might be in a different element of the array than install_logs
+                            let mut parsed_packages = false;
+                            if let Some(obj) = json_output.as_object() {
+                                if parse_packages_array(obj).is_some() {
+                                    parsed_packages = true;
+                                }
+                                // Also try to parse install_logs for backward compatibility
+                                if let Some(count) = parse_install_logs_from_obj(obj) {
+                                    package_count = count;
                                 }
                             } else if let Some(arr) = json_output.as_array() {
-                                log::warn!("    ⚠️ [ANALYZE] Package result is an array with {} elements, expected an object with install_logs", arr.len());
-                                if arr.len() > 0 {
-                                    log::info!("    📦 [ANALYZE] First array element: {:?}", arr.first().map(|v| v.to_string().chars().take(200).collect::<String>()));
+                                log::info!("    📦 [ANALYZE] Package result is an array with {} elements", arr.len());
+                                
+                                // Iterate through all array elements to find packages and install_logs
+                                for (idx, elem) in arr.iter().enumerate() {
+                                    if let Some(obj) = elem.as_object() {
+                                        log::info!("    📦 [ANALYZE] Checking array element {} with keys: {:?}", idx, obj.keys().collect::<Vec<_>>());
+                                        
+                                        // Check for packages array in this element
+                                        if parse_packages_array(obj).is_some() {
+                                            parsed_packages = true;
+                                            log::info!("    ✅ [ANALYZE] Found packages array in element {}", idx);
+                                        }
+                                        
+                                        // Also check for install_logs in this element
+                                        if let Some(count) = parse_install_logs_from_obj(obj) {
+                                            package_count = count;
+                                            log::info!("    ✅ [ANALYZE] Found install_logs in element {}", idx);
+                                        }
+                                    }
+                                }
+                                
+                                if !parsed_packages {
+                                    log::warn!("    ⚠️ [ANALYZE] No packages array found in any array element");
                                 }
                             } else {
                                 log::warn!("    ⚠️ [ANALYZE] Package result is not an object or array");
+                            }
+                            
+                            // Update package_count from package_details if we parsed packages
+                            if parsed_packages && !package_details.is_empty() {
+                                package_count = package_details.len();
                             }
                         },
                         _ => {
@@ -767,23 +1225,155 @@ impl Adb {
             }
         }
         
+        // Sort packages by timestamp (newest first)
+        // Parse timestamps for proper comparison
+        packages.sort_by(|a, b| {
+            // Parse timestamp format: "YYYY-MM-DD HH:MM:SS.mmm" or "YYYY-MM-DD HH:MM:SS"
+            let parse_timestamp = |ts: &str| -> Option<(i32, u32, u32, u32, u32, u32, u32)> {
+                let parts: Vec<&str> = ts.trim().split(' ').collect();
+                if parts.len() >= 2 {
+                    let date_parts: Vec<&str> = parts[0].split('-').collect();
+                    let time_parts: Vec<&str> = parts[1].split(':').collect();
+                    if date_parts.len() == 3 && time_parts.len() >= 3 {
+                        // Parse seconds and milliseconds (format: "SS.mmm" or "SS")
+                        let sec_part = time_parts[2];
+                        let sec_millis: Vec<&str> = sec_part.split('.').collect();
+                        let sec = sec_millis[0].parse::<u32>().ok()?;
+                        let millis = if sec_millis.len() > 1 {
+                            sec_millis[1].parse::<u32>().ok().unwrap_or(0)
+                        } else {
+                            0
+                        };
+                        
+                        if let (Ok(year), Ok(month), Ok(day), Ok(hour), Ok(min)) = (
+                            date_parts[0].parse::<i32>(),
+                            date_parts[1].parse::<u32>(),
+                            date_parts[2].parse::<u32>(),
+                            time_parts[0].parse::<u32>(),
+                            time_parts[1].parse::<u32>(),
+                        ) {
+                            return Some((year, month, day, hour, min, sec, millis));
+                        }
+                    }
+                }
+                None
+            };
+            
+            match (parse_timestamp(&b.timestamp), parse_timestamp(&a.timestamp)) {
+                (Some(b_ts), Some(a_ts)) => {
+                    // Compare: year, month, day, hour, min, sec, millis
+                    b_ts.cmp(&a_ts)
+                }
+                (Some(_), None) => std::cmp::Ordering::Less, // b has valid timestamp, a doesn't - b comes first
+                (None, Some(_)) => std::cmp::Ordering::Greater, // a has valid timestamp, b doesn't - a comes first
+                (None, None) => b.timestamp.cmp(&a.timestamp), // Fallback to string comparison
+            }
+        });
+        
+        // Sort processes by total CPU usage (descending - highest CPU first), then by PID (ascending)
+        processes.sort_by(|a, b| {
+            // First sort by CPU (descending - highest first)
+            match b.cpu_percent.partial_cmp(&a.cpu_percent) {
+                Some(std::cmp::Ordering::Equal) => {
+                    // If CPU is equal, sort by PID (ascending)
+                    a.pid.cmp(&b.pid)
+                }
+                Some(ordering) => ordering,
+                None => {
+                    // If comparison fails, fall back to PID
+                    a.pid.cmp(&b.pid)
+                }
+            }
+        });
+        
+        // Sort battery apps by total CPU time (descending - highest CPU first), then by package name
+        battery_apps.sort_by(|a, b| {
+            // First sort by total CPU time (descending - highest first)
+            match b.total_cpu_time_ms.cmp(&a.total_cpu_time_ms) {
+                std::cmp::Ordering::Equal => {
+                    // If CPU is equal, sort by package name (ascending)
+                    a.package_name.cmp(&b.package_name)
+                }
+                ordering => ordering,
+            }
+        });
+        
+        // Calculate unique package count (count distinct package names, ignoring versions)
+        let unique_package_count = {
+            let mut unique_packages = std::collections::HashSet::new();
+            for pkg in &packages {
+                unique_packages.insert(pkg.package_name.clone());
+            }
+            unique_packages.len()
+        };
+        
+        // Sort package_details by time_stamp (most recent first)
+        // Parse timestamp format: "YYYY-MM-DD HH:MM:SS" or "YYYY-MM-DD HH:MM:SS.mmm"
+        package_details.sort_by(|a, b| {
+            let parse_timestamp = |ts: &Option<String>| -> Option<(i32, u32, u32, u32, u32, u32, u32)> {
+                let ts_str = ts.as_ref()?;
+                let parts: Vec<&str> = ts_str.trim().split(' ').collect();
+                if parts.len() >= 2 {
+                    let date_parts: Vec<&str> = parts[0].split('-').collect();
+                    let time_parts: Vec<&str> = parts[1].split(':').collect();
+                    if date_parts.len() == 3 && time_parts.len() >= 3 {
+                        // Parse seconds and milliseconds (format: "SS.mmm" or "SS")
+                        let sec_part = time_parts[2];
+                        let sec_millis: Vec<&str> = sec_part.split('.').collect();
+                        let sec = sec_millis[0].parse::<u32>().ok()?;
+                        let millis = if sec_millis.len() > 1 {
+                            sec_millis[1].parse::<u32>().ok().unwrap_or(0)
+                        } else {
+                            0
+                        };
+                        
+                        if let (Ok(year), Ok(month), Ok(day), Ok(hour), Ok(min)) = (
+                            date_parts[0].parse::<i32>(),
+                            date_parts[1].parse::<u32>(),
+                            date_parts[2].parse::<u32>(),
+                            time_parts[0].parse::<u32>(),
+                            time_parts[1].parse::<u32>(),
+                        ) {
+                            return Some((year, month, day, hour, min, sec, millis));
+                        }
+                    }
+                }
+                None
+            };
+            
+            match (parse_timestamp(&b.time_stamp), parse_timestamp(&a.time_stamp)) {
+                (Some(b_ts), Some(a_ts)) => {
+                    // Compare: year, month, day, hour, min, sec, millis (descending - newest first)
+                    b_ts.cmp(&a_ts)
+                }
+                (Some(_), None) => std::cmp::Ordering::Less, // b has valid timestamp, a doesn't - b comes first
+                (None, Some(_)) => std::cmp::Ordering::Greater, // a has valid timestamp, b doesn't - a comes first
+                (None, None) => {
+                    // If both lack timestamps, fall back to package name
+                    a.package_name.cmp(&b.package_name)
+                }
+            }
+        });
+        
         log::info!("📊 [ANALYZE] Building summary...");
         let summary = BugreportSummary {
             device_info: device_info.clone(),
             battery_info: battery_info.clone(),
             process_count,
-            package_count,
-            logcat_lines: 0, // We'd need to add LogcatParser for this
+            package_count: unique_package_count,
             has_security_analysis: false, // Detection would be separate
             analysis_complete: true,
-            raw_json,
+            packages: packages.clone(),
+            processes: processes.clone(),
+            battery_apps: battery_apps.clone(),
+            package_details: package_details.clone(),
         };
         
         log::info!("✅ [ANALYZE] Analysis complete!");
         log::info!("📱 [ANALYZE] Device: {:?}", device_info.as_ref().map(|d| format!("{} {}", d.manufacturer, d.model)));
         log::info!("🔋 [ANALYZE] Battery: {:?}", battery_info.as_ref().map(|b| format!("{}%", b.level)));
         log::info!("⚙️ [ANALYZE] Processes: {}", process_count);
-        log::info!("📦 [ANALYZE] Packages: {}", package_count);
+        log::info!("📦 [ANALYZE] Unique packages: {} ({} total installations)", unique_package_count, packages.len());
         
         Ok(serde_wasm_bindgen::to_value(&summary)?)
     }
@@ -934,5 +1524,57 @@ pub fn has_keypair() -> Result<bool, JsValue> {
         Ok(Some(_)) => Ok(true),
         Ok(None) => Ok(false),
         Err(e) => Err(JsValue::from_str(&e.to_string())),
+    }
+}
+
+/// Extract kernel version from kernel string
+/// Format: "Linux version 6.6.50-android15-8-abA346BXXSBDYI1-4k (kleaf@build-host) ..."
+/// Returns: "6.6.50-android15-8-abA346BXXSBDYI1-4k"
+#[cfg(feature = "bugreport-analysis")]
+pub fn extract_kernel_version(kernel_str: &str) -> String {
+    // Extract version from "Linux version 6.6.50-android15-8-abA346BXXSBDYI1-4k ..."
+    if let Some(version_start) = kernel_str.find("Linux version ") {
+        let version_part = &kernel_str[version_start + 13..]; // Skip "Linux version "
+        // Trim leading whitespace first
+        let version_part = version_part.trim_start();
+        // Find first whitespace or opening parenthesis
+        let version_end = version_part
+            .find(char::is_whitespace)
+            .or_else(|| version_part.find('('))
+            .unwrap_or(version_part.len());
+        
+        version_part[..version_end].to_string()
+    } else {
+        // If "Linux version " not found, return the whole string (truncated if too long)
+        if kernel_str.len() > 100 {
+            format!("{}...", &kernel_str[..100])
+        } else {
+            kernel_str.to_string()
+        }
+    }
+}
+
+/// Extract manufacturer and model from build fingerprint
+/// Format: 'samsung/a34xeea/a34x:15/AP3A.240905.015.A2/A346BXXSBDYI1:user/release-keys'
+/// Returns: (manufacturer, model)
+#[cfg(feature = "bugreport-analysis")]
+pub fn extract_manufacturer_model(fingerprint: &str) -> (String, String) {
+    // Remove quotes if present
+    let fp_clean = fingerprint.trim_matches('\'').trim_matches('"');
+    // Split by '/' - format is manufacturer/codename/device:...
+    let parts: Vec<&str> = fp_clean.split('/').collect();
+    if parts.len() >= 3 {
+        let mfr = parts[0].to_string();
+        // Model is usually in the device part (third element)
+        // Format: "device:version" or just "device"
+        let device_part = parts[2];
+        let model_name = if let Some(colon_pos) = device_part.find(':') {
+            &device_part[..colon_pos]
+        } else {
+            device_part
+        };
+        (mfr, model_name.to_string())
+    } else {
+        ("Unknown".to_string(), "Unknown".to_string())
     }
 }
