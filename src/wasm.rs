@@ -459,7 +459,7 @@ impl Adb {
         use bugreport_extractor_library::run_parsers_concurrently;
         use bugreport_extractor_library::parsers::{
             Parser as DataParser, ParserType, HeaderParser, BatteryParser, 
-            PackageParser, ProcessParser
+            PackageParser, ProcessParser, PowerParser
         };
         use bugreport_extractor_library::zip_utils;
         use std::sync::Arc;
@@ -531,6 +531,15 @@ impl Adb {
             log::warn!("  ⚠️ [ANALYZE] Failed to create ProcessParser");
         }
         
+        // Add Power parser
+        log::info!("  ⚡ [ANALYZE] Creating PowerParser...");
+        if let Ok(power_parser) = PowerParser::new() {
+            parsers_to_run.push((ParserType::Power, Box::new(power_parser)));
+            log::info!("  ✅ [ANALYZE] PowerParser created");
+        } else {
+            log::warn!("  ⚠️ [ANALYZE] Failed to create PowerParser");
+        }
+        
         log::info!("✅ [ANALYZE] Created {} parsers", parsers_to_run.len());
         
         // Run parsers concurrently
@@ -552,6 +561,7 @@ impl Adb {
             processes: Vec<ProcessInfo>,
             battery_apps: Vec<BatteryAppInfo>,
             package_details: Vec<PackageDetails>,
+            power_history: Vec<PowerHistory>,
         }
         
         #[derive(Serialize, Clone)]
@@ -643,6 +653,22 @@ impl Adb {
             users: Vec<PackageUserInfo>,
         }
         
+        #[derive(Serialize, Clone)]
+        struct PowerEvent {
+            event_type: String,
+            timestamp: Option<String>,
+            details: Option<String>,
+            flags: Option<String>,
+        }
+        
+        #[derive(Serialize, Clone)]
+        struct PowerHistory {
+            timestamp: String,
+            reason: Option<String>,
+            history_events: Vec<PowerEvent>,
+            stack_trace: Vec<String>,
+        }
+        
         // Extract data from results
         log::info!("📤 [ANALYZE] Extracting data from parser results...");
         let mut device_info = None;
@@ -653,6 +679,7 @@ impl Adb {
         let mut processes: Vec<ProcessInfo> = Vec::new();
         let mut battery_apps: Vec<BatteryAppInfo> = Vec::new();
         let mut package_details: Vec<PackageDetails> = Vec::new();
+        let mut power_history: Vec<PowerHistory> = Vec::new();
         
         for (parser_type, result, duration) in results {
             log::info!("  🔍 [ANALYZE] Processing {:?} result (took {:?})", parser_type, duration);
@@ -672,7 +699,7 @@ impl Adb {
                                     .and_then(|v| v.as_str())
                                     .unwrap_or("Unknown")
                                     .to_string();
-                                
+
                                 // Extract Build ID
                                 let build_id = obj.get("Build")
                                     .and_then(|v| v.as_str())
@@ -1214,6 +1241,108 @@ impl Adb {
                                 package_count = package_details.len();
                             }
                         },
+                        ParserType::Power => {
+                            log::info!("    ⚡ [ANALYZE] Extracting power history...");
+                            // PowerParser returns an object with timestamp keys
+                            if let Some(obj) = json_output.as_object() {
+                                log::info!("    📊 [ANALYZE] Power object has {} entries", obj.len());
+                                
+                                for (timestamp_key, entry_value) in obj {
+                                    if let Some(entry_obj) = entry_value.as_object() {
+                                        let reason = entry_obj.get("reason")
+                                            .and_then(|v| v.as_str())
+                                            .map(|s| s.to_string());
+                                        
+                                        // Parse history_events
+                                        let mut events = Vec::new();
+                                        if let Some(events_arr) = entry_obj.get("history_events").and_then(|v| v.as_array()) {
+                                            for event_json in events_arr {
+                                                if let Some(event_obj) = event_json.as_object() {
+                                                    let event_type = event_obj.get("event_type")
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("")
+                                                        .to_string();
+                                                    
+                                                    let timestamp = event_obj.get("timestamp")
+                                                        .and_then(|v| v.as_str())
+                                                        .map(|s| s.to_string());
+                                                    
+                                                    let details = event_obj.get("details")
+                                                        .and_then(|v| v.as_str())
+                                                        .map(|s| s.to_string());
+                                                    
+                                                    let flags = event_obj.get("flags")
+                                                        .and_then(|v| v.as_str())
+                                                        .map(|s| s.to_string());
+                                                    
+                                                    events.push(PowerEvent {
+                                                        event_type,
+                                                        timestamp,
+                                                        details,
+                                                        flags,
+                                                    });
+                                                }
+                                            }
+                                        }
+                                        
+                                        // Parse stack_trace
+                                        let mut stack_trace = Vec::new();
+                                        if let Some(stack_arr) = entry_obj.get("stack_trace").and_then(|v| v.as_array()) {
+                                            for line in stack_arr {
+                                                if let Some(line_str) = line.as_str() {
+                                                    stack_trace.push(line_str.to_string());
+                                                }
+                                            }
+                                        }
+                                        
+                                        power_history.push(PowerHistory {
+                                            timestamp: timestamp_key.clone(),
+                                            reason,
+                                            history_events: events,
+                                            stack_trace,
+                                        });
+                                    }
+                                }
+                                
+                                log::info!("    ✅ [ANALYZE] Parsed {} power history entries", power_history.len());
+                                
+                                // Sort by timestamp (most recent first)
+                                power_history.sort_by(|a, b| {
+                                    // Parse timestamp format: "YY/MM/DD HH:MM:SS"
+                                    let parse_timestamp = |ts: &str| -> Option<(i32, u32, u32, u32, u32, u32)> {
+                                        let parts: Vec<&str> = ts.trim().split(' ').collect();
+                                        if parts.len() >= 2 {
+                                            let date_parts: Vec<&str> = parts[0].split('/').collect();
+                                            let time_parts: Vec<&str> = parts[1].split(':').collect();
+                                            if date_parts.len() == 3 && time_parts.len() >= 3 {
+                                                if let (Ok(year), Ok(month), Ok(day), Ok(hour), Ok(min), Ok(sec)) = (
+                                                    date_parts[0].parse::<i32>(),
+                                                    date_parts[1].parse::<u32>(),
+                                                    date_parts[2].parse::<u32>(),
+                                                    time_parts[0].parse::<u32>(),
+                                                    time_parts[1].parse::<u32>(),
+                                                    time_parts[2].parse::<u32>(),
+                                                ) {
+                                                    // Assume 20XX for years < 50, 19XX otherwise
+                                                    let full_year = if year < 50 { 2000 + year } else { 1900 + year };
+                                                    return Some((full_year, month, day, hour, min, sec));
+                                                }
+                                            }
+                                        }
+                                        None
+                                    };
+                                    
+                                    match (parse_timestamp(&b.timestamp), parse_timestamp(&a.timestamp)) {
+                                        (Some(b_ts), Some(a_ts)) => b_ts.cmp(&a_ts),
+                                        (Some(_), None) => std::cmp::Ordering::Less,
+                                        (None, Some(_)) => std::cmp::Ordering::Greater,
+                                        (None, None) => b.timestamp.cmp(&a.timestamp),
+                                    }
+                                });
+                            } else {
+                                log::warn!("    ⚠️ [ANALYZE] Power result is not an object");
+                            }
+                        },
                         _ => {
                             log::info!("    ℹ️ [ANALYZE] Skipping {:?} (not used in summary)", parser_type);
                         }
@@ -1367,6 +1496,7 @@ impl Adb {
             processes: processes.clone(),
             battery_apps: battery_apps.clone(),
             package_details: package_details.clone(),
+            power_history: power_history.clone(),
         };
         
         log::info!("✅ [ANALYZE] Analysis complete!");
@@ -1374,6 +1504,7 @@ impl Adb {
         log::info!("🔋 [ANALYZE] Battery: {:?}", battery_info.as_ref().map(|b| format!("{}%", b.level)));
         log::info!("⚙️ [ANALYZE] Processes: {}", process_count);
         log::info!("📦 [ANALYZE] Unique packages: {} ({} total installations)", unique_package_count, packages.len());
+        log::info!("⚡ [ANALYZE] Power history events: {}", power_history.len());
         
         Ok(serde_wasm_bindgen::to_value(&summary)?)
     }
