@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ADB Bugreport & Diagnostics - Rust WebADB</title>
+    <title>Comprehensive Bugreport Analyzer</title>
     <style>
         * {
             margin: 0;
@@ -11,105 +11,290 @@
             box-sizing: border-box;
         }
 
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f5f5f5;
+            --bg-card: #ffffff;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --border: #e0e0e0;
+            --accent: #2196F3;
+            --accent-hover: #1976D2;
+            --success: #4CAF50;
+            --warning: #FF9800;
+            --error: #f44336;
+            --shadow: rgba(0, 0, 0, 0.1);
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --bg-card: #252525;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --border: #404040;
+            --accent: #42A5F5;
+            --accent-hover: #64B5F6;
+            --success: #66BB6A;
+            --warning: #FFA726;
+            --error: #EF5350;
+            --shadow: rgba(0, 0, 0, 0.3);
+        }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            transition: background-color 0.3s, color 0.3s;
         }
 
         .container {
             max-width: 1200px;
             margin: 0 auto;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            padding: 40px;
+            padding: 2rem 1rem;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
         }
 
         h1 {
-            color: #333;
-            margin-bottom: 10px;
+            font-size: 1.75rem;
+            font-weight: 600;
         }
 
-        .subtitle {
-            color: #666;
-            margin-bottom: 30px;
-        }
-
-        .status {
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            font-weight: 500;
-        }
-
-        .status.disconnected {
-            background: #fee;
-            color: #c33;
-        }
-
-        .status.connected {
-            background: #efe;
-            color: #3c3;
-        }
-
-        .status.working {
-            background: #ffc;
-            color: #cc6;
-        }
-
-        button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 16px;
+        .theme-toggle {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 0.5rem 1rem;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-            margin-right: 10px;
-            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: var(--text-primary);
+            transition: all 0.2s;
         }
 
-        button:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-        }
-
-        button:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-            transform: none;
+        .theme-toggle:hover {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
         }
 
         .section {
-            margin: 30px 0;
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 10px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 4px var(--shadow);
         }
 
         .section h2 {
-            color: #333;
-            margin-bottom: 15px;
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
             display: flex;
             align-items: center;
-            gap: 10px;
+            justify-content: space-between;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .section-toggle {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 0.25rem;
+            transition: transform 0.2s;
+        }
+
+        .section-toggle.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .section-content {
+            transition: max-height 0.3s ease, opacity 0.3s ease;
+            overflow: hidden;
+        }
+
+        .section-content.collapsed {
+            max-height: 0;
+            opacity: 0;
         }
 
         .section p {
-            color: #666;
-            margin-bottom: 15px;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            margin-bottom: 1rem;
+        }
+
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 0.75rem 1.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+            width: 100%;
+        }
+
+        button:hover:not(:disabled) {
+            background: var(--accent-hover);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .upload-zone {
+            border: 2px dashed var(--border);
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 1rem;
+        }
+
+        .upload-zone:hover {
+            border-color: var(--accent);
+            background: var(--bg-secondary);
+        }
+
+        .upload-zone.dragover {
+            border-color: var(--accent);
+            background: var(--bg-secondary);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            margin-bottom: 0.5rem;
+            opacity: 0.5;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+        }
+
+        .status {
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
+            display: none;
+        }
+
+        .status.info {
+            background: rgba(33, 150, 243, 0.1);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+            display: block;
+        }
+
+        .status.success {
+            background: rgba(76, 175, 80, 0.1);
+            color: var(--success);
+            border: 1px solid var(--success);
+            display: block;
+        }
+
+        .status.error {
+            background: rgba(244, 67, 54, 0.1);
+            color: var(--error);
+            border: 1px solid var(--error);
+            display: block;
+        }
+
+        .results {
+            display: none;
+            margin-top: 2rem;
+        }
+
+        .results.show {
+            display: block;
+        }
+
+        .result-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .result-card h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--text-primary);
+        }
+
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .result-item {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 1rem;
+        }
+
+        .result-item-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.25rem;
+        }
+
+        .result-item-value {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
         }
 
         .progress {
             width: 100%;
-            height: 30px;
-            background: #e0e0e0;
-            border-radius: 15px;
+            height: 4px;
+            background: var(--bg-secondary);
+            border-radius: 2px;
             overflow: hidden;
-            margin: 15px 0;
+            margin: 1rem 0;
             display: none;
         }
 
@@ -119,1939 +304,2177 @@
 
         .progress-bar {
             height: 100%;
-            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(90deg, var(--accent), var(--accent-hover));
             width: 0%;
             transition: width 0.3s;
+            animation: progress-animation 1.5s infinite;
+        }
+
+        @keyframes progress-animation {
+            0% { opacity: 1; }
+            50% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
+
+        .tabs {
             display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
         }
 
-        .output {
-            background: #1e1e1e;
-            color: #d4d4d4;
-            padding: 20px;
-            border-radius: 10px;
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
-            max-height: 400px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            margin-top: 15px;
-        }
-
-        .file-info {
-            background: #e8f4f8;
-            padding: 15px;
-            border-radius: 8px;
-            margin: 15px 0;
-            display: none;
-        }
-
-        .file-info.show {
-            display: block;
-        }
-
-        .file-info h3 {
-            color: #333;
-            margin-bottom: 10px;
-        }
-
-        .file-info p {
-            color: #555;
-            margin: 5px 0;
-        }
-
-        .download-btn {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        }
-
-        .warning {
-            background: #fff3cd;
-            border-left: 4px solid #ffc107;
-            padding: 15px;
-            margin: 15px 0;
-            border-radius: 5px;
-            color: #856404;
-        }
-
-        .success {
-            background: #d4edda;
-            border-left: 4px solid #28a745;
-            padding: 15px;
-            margin: 15px 0;
-            border-radius: 5px;
-            color: #155724;
-        }
-
-        .error {
-            background: #f8d7da;
-            border-left: 4px solid #dc3545;
-            padding: 15px;
-            margin: 15px 0;
-            border-radius: 5px;
-            color: #721c24;
-        }
-
-        .logcat-controls {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-
-        .logcat-controls input {
-            padding: 10px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 16px;
-            width: 120px;
-        }
-
-        .file-list {
-            max-height: 300px;
-            overflow-y: auto;
-            background: #f8f9fa;
-            padding: 10px;
-            border-radius: 5px;
-            margin: 10px 0;
-        }
-
-        .file-item {
-            padding: 8px;
-            margin: 5px 0;
-            background: white;
-            border-radius: 5px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .file-item:hover {
-            background: #e8f4f8;
-        }
-
-        .file-icon {
-            margin-right: 10px;
-        }
-
-        /* File Manager Styles */
-        #fileTable tbody tr {
-            border-bottom: 1px solid #eee;
-            transition: background 0.2s;
-        }
-
-        #fileTable tbody tr:hover {
-            background: #f5f5f5;
-        }
-
-        #fileTable tbody tr.selected {
-            background: #E3F2FD !important;
-        }
-
-        #fileTable tbody td {
-            padding: 12px;
-        }
-
-        .file-row-name {
-            display: flex;
-            align-items: center;
-            gap: 8px;
+        .tab {
+            padding: 0.75rem 1rem;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
             cursor: pointer;
-            user-select: none;
+            border-bottom: 2px solid transparent;
+            font-weight: 500;
+            width: auto;
         }
 
-        .file-icon-large {
-            font-size: 20px;
+        .tab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
         }
 
-        .context-menu-item:hover {
-            background: #f5f5f5;
+        .tab:hover {
+            background: transparent;
+            color: var(--text-primary);
         }
 
-        .breadcrumb-part {
-            cursor: pointer;
-            padding: 2px 6px;
-            border-radius: 3px;
-            transition: background 0.2s;
-        }
-
-        .breadcrumb-part:hover {
-            background: #e0e0e0;
-        }
-
-        .breadcrumb-separator {
-            color: #999;
-            margin: 0 2px;
-        }
-
-        .quickPath:hover:not(:disabled) {
-            opacity: 0.8;
-        }
-
-        #fileDropZone {
+        .hidden {
             display: none !important;
         }
 
-        #fileDropZone.active {
-            display: flex !important;
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            font-size: 0.875rem;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .data-table th {
+            background: var(--bg-secondary);
+            font-weight: 600;
+            color: var(--text-primary);
+            position: sticky;
+            top: 0;
+        }
+
+        .data-table tr:hover {
+            background: var(--bg-secondary);
+        }
+
+        .data-table-container {
+            max-height: 500px;
+            overflow-y: auto;
+            margin-top: 1rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+
+        .search-box {
+            margin-bottom: 1rem;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 0.75rem;
+            padding-left: 2.5rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 0.875rem;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-secondary);
+        }
+
+        .count-badge {
+            display: inline-block;
+            background: var(--accent);
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+        }
+
+        .json-viewer {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 1rem;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.813rem;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .listing-indicator {
+            animation: pulse 2s ease-in-out infinite;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(0.98); }
+        }
+
+        #wasm-status {
+            transition: opacity 0.3s ease, background 0.3s ease, color 0.3s ease;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        .package-details-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .package-detail-item {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .package-detail-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .package-detail-header h4 {
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .version-badge {
+            background: var(--accent);
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .package-detail-content {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .detail-section {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.75rem;
+        }
+
+        .detail-section strong {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .detail-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        .detail-table td {
+            padding: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .detail-table td:first-child {
+            font-weight: 600;
+            color: var(--text-secondary);
+            width: 40%;
+        }
+
+        .detail-table td:last-child {
+            color: var(--text-primary);
+        }
+
+        .detail-table code {
+            background: var(--bg-primary);
+            padding: 0.125rem 0.25rem;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.813rem;
+            word-break: break-all;
+        }
+
+        .install-logs-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        .install-log-entry {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.75rem;
+        }
+
+        .install-log-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .install-log-type {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+        }
+
+        .install-log-time {
+            color: var(--text-secondary);
+            font-size: 0.813rem;
+        }
+
+        .install-log-details {
+            margin-top: 0.5rem;
+        }
+
+        .related-events {
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .related-event {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            margin-bottom: 0.25rem;
+            font-size: 0.813rem;
+        }
+
+        .event-type {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .event-time {
+            color: var(--text-secondary);
+        }
+
+        .users-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        .user-entry {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.75rem;
+        }
+
+        .user-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .user-id {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+        }
+
+        .user-status {
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .user-status.installed {
+            background: var(--success);
+            color: white;
+        }
+
+        .user-status.not-installed {
+            background: var(--error);
+            color: white;
+        }
+
+        .power-history-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .power-history-entry {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .power-history-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .power-history-header h4 {
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .power-reason-badge {
+            background: var(--warning);
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .power-events-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        .power-event-entry {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.75rem;
+        }
+
+        .power-event-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .power-event-type {
+            font-weight: 600;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.813rem;
+        }
+
+        .power-event-type.reboot {
+            background: var(--accent);
+            color: white;
+        }
+
+        .power-event-type.shutdown {
+            background: var(--error);
+            color: white;
+        }
+
+        .power-event-type.on {
+            background: var(--success);
+            color: white;
+        }
+
+        .power-event-type.lpm {
+            background: var(--warning);
+            color: white;
+        }
+
+        .power-event-time {
+            color: var(--text-secondary);
+            font-size: 0.813rem;
+        }
+
+        .power-event-flags {
+            background: var(--bg-secondary);
+            padding: 0.125rem 0.375rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-family: monospace;
+            color: var(--text-primary);
+        }
+
+        .power-event-details {
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .stack-trace-container {
+            margin-top: 0.5rem;
+        }
+
+        .stack-trace {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.75rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.75rem;
+            line-height: 1.5;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 300px;
+            overflow-y: auto;
+            color: var(--text-primary);
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🔧 ADB Bugreport & Diagnostics</h1>
-        <p class="subtitle">Generate comprehensive device reports and diagnostics</p>
-
-        <div id="status" class="status disconnected">
-            Status: Disconnected
-        </div>
-
-        <div class="controls">
-            <button id="connectBtn">Connect to Device</button>
-            <button id="disconnectBtn" disabled>Disconnect</button>
-        </div>
-
-        <!-- Connection Diagnostics Section -->
-        <div class="section" style="background: #f0f8ff; border-left: 4px solid #2196F3;">
-            <h2>🔍 Connection Diagnostics</h2>
-            <p>Monitor ADB connection health and manage streams.</p>
-            
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0;">
-                <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                    <div style="color: #666; font-size: 12px; margin-bottom: 5px;">Active Streams</div>
-                    <div style="font-size: 28px; font-weight: bold; color: #2196F3;" id="streamCount">0</div>
-                </div>
-                <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                    <div style="color: #666; font-size: 12px; margin-bottom: 5px;">Connection Health</div>
-                    <div style="font-size: 24px; font-weight: bold; color: #999;" id="healthStatus">Unknown</div>
-                </div>
-                <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                    <div style="color: #666; font-size: 12px; margin-bottom: 5px;">Stale Cleaned</div>
-                    <div style="font-size: 28px; font-weight: bold; color: #FF9800;" id="cleanedCount">0</div>
-                </div>
-            </div>
-            
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <button id="healthCheckBtn" disabled style="background: #4CAF50;">Check Health</button>
-                <button id="cleanupStreamsBtn" disabled style="background: #FF9800;">Cleanup Stale</button>
-                <button id="refreshDiagnosticsBtn" disabled style="background: #2196F3;">Refresh</button>
-            </div>
-            
-            <div id="diagnosticsLog" style="margin-top: 15px; padding: 10px; background: white; border-radius: 5px; font-family: monospace; font-size: 12px; max-height: 200px; overflow-y: auto; display: none;"></div>
-        </div>
-
-        <!-- Shell Terminal Section -->
-        <div class="section" style="background: #1e1e1e; color: #d4d4d4; border-left: 4px solid #00ff00;">
-            <h2 style="color: #00ff00;">💻 Shell Terminal</h2>
-            <p style="color: #d4d4d4;">Execute commands on the Android device.</p>
-            
-            <!-- Quick Commands -->
-            <div style="margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 8px;">
-                <button id="shellCmdLs" style="background: #2d2d2d; color: #00ff00; border: 1px solid #00ff00; padding: 6px 12px; font-size: 12px;">ls -la</button>
-                <button id="shellCmdPwd" style="background: #2d2d2d; color: #00ff00; border: 1px solid #00ff00; padding: 6px 12px; font-size: 12px;">pwd</button>
-                <button id="shellCmdDf" style="background: #2d2d2d; color: #00ff00; border: 1px solid #00ff00; padding: 6px 12px; font-size: 12px;">df -h</button>
-                <button id="shellCmdPs" style="background: #2d2d2d; color: #00ff00; border: 1px solid #00ff00; padding: 6px 12px; font-size: 12px;">ps</button>
-                <button id="shellCmdVersion" style="background: #2d2d2d; color: #00ff00; border: 1px solid #00ff00; padding: 6px 12px; font-size: 12px;">version</button>
-                <button id="shellCmdUname" style="background: #2d2d2d; color: #00ff00; border: 1px solid #00ff00; padding: 6px 12px; font-size: 12px;">uname</button>
-                <button id="shellCmdClear" style="background: #2d2d2d; color: #ff6b6b; border: 1px solid #ff6b6b; padding: 6px 12px; font-size: 12px;">clear</button>
-            </div>
-            
-            <!-- Terminal Output -->
-            <div id="terminalOutput" style="
-                background: #000000;
-                color: #00ff00;
-                font-family: 'Courier New', monospace;
-                font-size: 13px;
-                padding: 15px;
-                border-radius: 5px;
-                height: 400px;
-                overflow-y: auto;
-                margin-bottom: 10px;
-                white-space: pre-wrap;
-                word-wrap: break-word;
-                border: 2px solid #00ff00;
-            ">$ <span style="color: #888;">Connected. Type a command or use quick buttons above.</span></div>
-            
-            <!-- Command Input -->
-            <div style="display: flex; gap: 10px; align-items: center;">
-                <span style="color: #00ff00; font-family: 'Courier New', monospace; font-size: 14px; font-weight: bold;">$</span>
-                <input 
-                    type="text" 
-                    id="shellInput" 
-                    placeholder="Enter command (e.g., ls -la, df -h, ps)" 
-                    disabled
-                    style="
-                        flex: 1;
-                        background: #000000;
-                        color: #00ff00;
-                        border: 2px solid #00ff00;
-                        padding: 10px;
-                        font-family: 'Courier New', monospace;
-                        font-size: 14px;
-                        border-radius: 5px;
-                    "
-                />
-                <button 
-                    id="shellExecuteBtn" 
-                    disabled
-                    style="background: #00ff00; color: #000; padding: 10px 20px; font-weight: bold;">
-                    Execute
+        <header>
+            <h1>📱 Comprehensive Bugreport Analyzer</h1>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <span id="wasm-status" style="font-size: 0.75rem; padding: 0.25rem 0.75rem; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 12px;">
+                    ⏳ Loading...
+                </span>
+                <button class="theme-toggle" onclick="toggleTheme()">
+                    <span id="theme-icon">🌙</span>
+                    <span id="theme-text">Dark</span>
                 </button>
             </div>
-            
-            <div style="margin-top: 10px; color: #888; font-size: 12px;">
-                💡 Tips: Use ↑/↓ arrows for command history | Ctrl+C to stop | Ctrl+L to clear
-            </div>
-        </div>
+        </header>
 
-        <!-- File Manager Section -->
-        <div class="section" style="background: #f5f5f5; border-left: 4px solid #FF9800;">
-            <h2>📁 File Manager</h2>
-            <p>Browse, upload, download, and manage files on your Android device.</p>
-            
-            <!-- Toolbar -->
-            <div style="background: white; padding: 15px; border-radius: 5px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                <!-- Breadcrumb Navigation -->
-                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                    <button id="fileNavBack" disabled style="background: #666; padding: 6px 12px;">← Back</button>
-                    <button id="fileNavUp" disabled style="background: #666; padding: 6px 12px;">↑ Up</button>
-                    <div id="breadcrumbNav" style="flex: 1; display: flex; align-items: center; gap: 5px; padding: 8px; background: #f9f9f9; border-radius: 3px; font-family: monospace; font-size: 13px; overflow-x: auto;">
-                        <span style="color: #666;">Loading...</span>
-                    </div>
-                    <button id="fileRefresh" disabled style="background: #2196F3; padding: 6px 12px;">🔄 Refresh</button>
-                </div>
-                
-                <!-- Quick Paths -->
-                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">
-                    <button class="quickPath" data-path="/sdcard" disabled style="background: #4CAF50; color: white; padding: 4px 10px; font-size: 12px;">📱 SD Card</button>
-                    <button class="quickPath" data-path="/sdcard/Download" disabled style="background: #4CAF50; color: white; padding: 4px 10px; font-size: 12px;">📥 Downloads</button>
-                    <button class="quickPath" data-path="/sdcard/DCIM" disabled style="background: #4CAF50; color: white; padding: 4px 10px; font-size: 12px;">📷 Camera</button>
-                    <button class="quickPath" data-path="/data/local/tmp" disabled style="background: #4CAF50; color: white; padding: 4px 10px; font-size: 12px;">🔧 Tmp</button>
-                    <button class="quickPath" data-path="/" disabled style="background: #4CAF50; color: white; padding: 4px 10px; font-size: 12px;">🏠 Root</button>
-                </div>
-                
-                <!-- Actions -->
-                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                    <button id="fileUploadBtn" disabled style="background: #FF9800;">⬆️ Upload Files</button>
-                    <input type="file" id="fileUploadInput" multiple style="display: none;">
-                    <button id="fileNewFolderBtn" disabled style="background: #9C27B0; color: white;">📁 New Folder</button>
-                    <button id="fileSelectAllBtn" disabled style="background: #666;">Select All</button>
-                    <button id="fileDeselectAllBtn" disabled style="background: #666;">Deselect All</button>
-                </div>
-            </div>
-            
-            <!-- File List Container -->
-            <div style="background: white; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); overflow: hidden;">
-                <div id="fileListContainer" style="max-height: 500px; overflow-y: auto;">
-                    <table id="fileTable" style="width: 100%; border-collapse: collapse;">
-                        <thead style="position: sticky; top: 0; background: #f5f5f5; z-index: 10;">
-                            <tr>
-                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd; cursor: pointer; user-select: none;" data-sort="name">
-                                    <input type="checkbox" id="selectAllCheckbox" style="margin-right: 8px;">
-                                    📄 Name <span id="sortNameIndicator">▼</span>
-                                </th>
-                                <th style="padding: 12px; text-align: right; border-bottom: 2px solid #ddd; cursor: pointer; user-select: none; width: 120px;" data-sort="size">
-                                    💾 Size <span id="sortSizeIndicator"></span>
-                                </th>
-                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd; width: 100px;">
-                                    📋 Type
-                                </th>
-                                <th style="padding: 12px; text-align: center; border-bottom: 2px solid #ddd; width: 100px;">
-                                    ⚙️ Actions
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody id="fileTableBody">
-                            <tr>
-                                <td colspan="4" style="padding: 40px; text-align: center; color: #999;">
-                                    Connect to a device to browse files
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            
-            <!-- Drop Zone Overlay -->
-            <div id="fileDropZone" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255, 152, 0, 0.9); z-index: 9999; align-items: center; justify-content: center;">
-                <div style="text-align: center; color: white;">
-                    <div style="font-size: 72px; margin-bottom: 20px;">📤</div>
-                    <div style="font-size: 32px; font-weight: bold;">Drop files here to upload</div>
-                    <div style="font-size: 18px; margin-top: 10px;" id="dropZonePath"></div>
-                </div>
-            </div>
-            
-            <!-- Context Menu -->
-            <div id="fileContextMenu" style="display: none; position: fixed; background: white; border: 1px solid #ccc; border-radius: 4px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); z-index: 10000; min-width: 180px;">
-                <div class="context-menu-item" data-action="open" style="padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #eee;">
-                    📂 Open
-                </div>
-                <div class="context-menu-item" data-action="download" style="padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #eee;">
-                    📥 Download
-                </div>
-                <div class="context-menu-item" data-action="rename" style="padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #eee;">
-                    ✏️ Rename
-                </div>
-                <div class="context-menu-item" data-action="delete" style="padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #eee; color: #f44336;">
-                    🗑️ Delete
-                </div>
-                <div class="context-menu-item" data-action="copypath" style="padding: 10px 15px; cursor: pointer;">
-                    📋 Copy Path
-                </div>
-            </div>
-        </div>
+        <div id="status" class="status"></div>
+        <div id="progress" class="progress"><div class="progress-bar"></div></div>
 
-        <!-- Modals -->
-        <div id="fileManagerModals">
-            <!-- Rename Modal -->
-            <div id="renameModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10001; align-items: center; justify-content: center;">
-                <div style="background: white; padding: 25px; border-radius: 8px; min-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
-                    <h3 style="margin-top: 0;">✏️ Rename</h3>
-                    <input type="text" id="renameInput" placeholder="New name" style="width: 100%; padding: 10px; font-size: 14px; border: 2px solid #ddd; border-radius: 4px; margin-bottom: 15px;">
-                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                        <button onclick="closeRenameModal()" style="background: #999; padding: 8px 20px;">Cancel</button>
-                        <button onclick="confirmRename()" style="background: #2196F3; padding: 8px 20px;">Rename</button>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- New Folder Modal -->
-            <div id="newFolderModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10001; align-items: center; justify-content: center;">
-                <div style="background: white; padding: 25px; border-radius: 8px; min-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
-                    <h3 style="margin-top: 0;">📁 Create New Folder</h3>
-                    <input type="text" id="newFolderInput" placeholder="Folder name" style="width: 100%; padding: 10px; font-size: 14px; border: 2px solid #ddd; border-radius: 4px; margin-bottom: 15px;">
-                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                        <button onclick="closeNewFolderModal()" style="background: #999; padding: 8px 20px;">Cancel</button>
-                        <button onclick="confirmNewFolder()" style="background: #9C27B0; color: white; padding: 8px 20px;">Create</button>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Delete Confirm Modal -->
-            <div id="deleteConfirmModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10001; align-items: center; justify-content: center;">
-                <div style="background: white; padding: 25px; border-radius: 8px; min-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
-                    <h3 style="margin-top: 0; color: #f44336;">🗑️ Confirm Delete</h3>
-                    <p id="deleteConfirmText">Are you sure you want to delete this item?</p>
-                    <div class="warning" style="margin: 15px 0;">
-                        <strong>⚠️ Warning:</strong> This action cannot be undone!
-                    </div>
-                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                        <button onclick="closeDeleteConfirmModal()" style="background: #999; padding: 8px 20px;">Cancel</button>
-                        <button onclick="confirmDelete()" style="background: #f44336; padding: 8px 20px;">Delete</button>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Upload Progress Modal -->
-            <div id="uploadProgressModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10001; align-items: center; justify-content: center;">
-                <div style="background: white; padding: 25px; border-radius: 8px; min-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
-                    <h3 style="margin-top: 0;">⬆️ Uploading Files</h3>
-                    <div id="uploadFileName" style="margin-bottom: 10px; font-weight: bold;">file.txt</div>
-                    <div style="background: #eee; border-radius: 10px; height: 24px; overflow: hidden; margin-bottom: 10px;">
-                        <div id="uploadProgressBar" style="background: linear-gradient(90deg, #FF9800, #FFC107); height: 100%; width: 0%; transition: width 0.3s;"></div>
-                    </div>
-                    <div id="uploadProgressText" style="text-align: center; color: #666; font-size: 14px;">0%</div>
-                    <div id="uploadStatus" style="margin-top: 10px; font-size: 12px; color: #666; text-align: center;"></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Bugreport Section -->
+        <!-- Method Selection -->
         <div class="section">
-            <h2>📋 Bug Reports</h2>
-            <p>Access device diagnostic reports for troubleshooting.</p>
-            
-            <div class="warning">
-                <strong>💡 Tip:</strong> Check "Available Bugreports" below first to download existing reports instantly!
-                Generating a new report takes 5-10 minutes (2-5 min generation + 1-5 min download for large files).
+            <h2>Select Analysis Method</h2>
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('generate')">Generate New</button>
+                <button class="tab" onclick="switchTab('device')">From Device</button>
+                <button class="tab" onclick="switchTab('upload')">Upload File</button>
             </div>
 
-            <button id="bugreportLiteBtn" disabled>Generate Lite Report (Fast ~30s)</button>
-            <button id="bugreportFullBtn" disabled>Generate Full Report (Very Slow ~5-10min)</button>
-            
-            <div id="bugreportProgress" class="progress">
-                <div id="bugreportProgressBar" class="progress-bar">0%</div>
+            <!-- Generate New Bugreport -->
+            <div id="tab-generate">
+                <p>Connect to your device and generate a fresh bugreport (takes 5-10 minutes).</p>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button id="btn-generate" onclick="generateBugreport()" style="flex: 1;">Connect & Generate Bugreport</button>
+                    <button id="btn-disconnect-generate" class="hidden" onclick="disconnectDevice()" title="Disconnect from device" style="background: var(--error); padding: 0.75rem; min-width: 44px; font-size: 1.2rem; line-height: 1;">
+                        🔌
+                    </button>
+                </div>
             </div>
 
-            <div id="bugreportInfo" class="file-info">
-                <h3>Report Generated</h3>
-                <p><strong>Size:</strong> <span id="reportSize">-</span></p>
-                <p><strong>Format:</strong> <span id="reportFormat">-</span></p>
-                <button id="downloadReportBtn" class="download-btn">Download Report</button>
-                <button id="viewReportBtn">View Report</button>
+            <!-- Use Existing from Device -->
+            <div id="tab-device" class="hidden">
+                <p>Connect to device and select an existing bugreport.</p>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button id="btn-connect-device" onclick="connectDevice()" style="flex: 1;">Connect to Device</button>
+                    <button id="btn-disconnect-device" class="hidden" onclick="disconnectDevice()" title="Disconnect from device" style="background: var(--error); padding: 0.75rem; min-width: 44px; font-size: 1.2rem; line-height: 1;">
+                        🔌
+                    </button>
+                </div>
+                <div id="listing-status" class="listing-indicator hidden" style="text-align: center; padding: 1rem; margin: 1rem 0;">
+                    <div style="margin-bottom: 0.5rem; font-weight: 500;">📡 Scanning device for bugreports...</div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">This may take 10-30 seconds</div>
+                </div>
+                <select id="bugreport-select" class="hidden" onchange="selectBugreport()">
+                    <option value="">Select a bugreport...</option>
+                </select>
+                <button id="btn-refresh-list" class="hidden" onclick="refreshBugreportList()" style="background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border); margin-top: 0.5rem;">
+                    🔄 Refresh List
+                </button>
+                <button id="btn-analyze-device" class="hidden" onclick="analyzeFromDevice()">Analyze Selected Bugreport</button>
             </div>
 
-            <div id="bugreportOutput" class="output" style="display: none;"></div>
-
-            <!-- Available Bugreports -->
-            <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #eee; background: #f9f9f9; padding: 20px; border-radius: 8px;">
-                <h3>⚡ Available Bugreports on Device (Recommended)</h3>
-                <p style="color: #666; margin-bottom: 15px;">
-                    <strong>Fastest option:</strong> Download previously generated bugreports instantly.<br>
-                    If you recently ran "adb bugreportz" or generated a report, it will appear here.
-                </p>
-                <button id="listBugreportsBtn" disabled style="background: #4CAF50;">List Available Bugreports</button>
-                <div id="bugreportsList" class="output" style="display: none;"></div>
-                
-                <!-- Download Debug Panel -->
-                <div id="downloadDebug" style="display: none; margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 8px; font-family: monospace; font-size: 12px;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                        <strong style="color: #2196F3;">📊 Download Progress</strong>
-                        <span id="downloadStatus" style="color: #666;">Idle</span>
+            <!-- Upload File -->
+            <div id="tab-upload" class="hidden">
+                <p>Upload a bugreport file from your computer.</p>
+                <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+                    <div class="upload-icon">📁</div>
+                    <div>Click or drag a bugreport file here</div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.5rem;">
+                        Supports .zip, .txt files
                     </div>
-                    <div style="margin: 10px 0;">
-                        <div style="background: #ddd; border-radius: 10px; height: 20px; overflow: hidden;">
-                            <div id="downloadProgressBar" style="background: linear-gradient(90deg, #4CAF50, #45a049); height: 100%; width: 0%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 11px;"></div>
+                </div>
+                <input type="file" id="file-input" accept=".zip,.txt" onchange="handleFileSelect(event)">
+                <button id="btn-analyze-upload" class="hidden" onclick="analyzeUploadedFile()">Analyze Uploaded File</button>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div id="results" class="results">
+            <div class="section">
+                <h2>📊 Analysis Results</h2>
+                <div id="analysis-timestamp" style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1rem; display: none;">
+                    <span style="opacity: 0.7;">Analyzed on</span> <span id="timestamp-value"></span>
+                </div>
+                
+                <!-- Device Information -->
+                <div class="result-card">
+                    <h3>📱 Device Information</h3>
+                    <div class="result-grid">
+                        <div class="result-item">
+                            <div class="result-item-label">Manufacturer</div>
+                            <div class="result-item-value" id="device-manufacturer">-</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-item-label">Model</div>
+                            <div class="result-item-value" id="device-model">-</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-item-label">Android Version</div>
+                            <div class="result-item-value" id="device-android">-</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-item-label">Build ID</div>
+                            <div class="result-item-value" id="device-build" style="font-size: 0.9rem;">-</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-item-label">Kernel Version</div>
+                            <div class="result-item-value" id="device-kernel" style="font-size: 0.9rem;">-</div>
                         </div>
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-                        <div>📁 <strong>File:</strong> <span id="debugFile">-</span></div>
-                        <div>📦 <strong>Size:</strong> <span id="debugSize">-</span></div>
-                        <div>⏱️ <strong>Elapsed:</strong> <span id="debugTime">0s</span></div>
-                        <div>⚡ <strong>Speed:</strong> <span id="debugSpeed">-</span></div>
+                </div>
+
+                <!-- File Information -->
+                <div class="result-card" id="file-info-card" style="display: none;">
+                    <h3>📄 File Information</h3>
+                    <div class="result-grid">
+                        <div class="result-item" style="grid-column: 1 / -1;">
+                            <div class="result-item-label">File Path</div>
+                            <div class="result-item-value" id="file-path" style="font-size: 0.85rem; word-break: break-all;">-</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-item-label">File Size</div>
+                            <div class="result-item-value" id="file-size" style="font-size: 0.85rem;">-</div>
+                        </div>
+                        <div class="result-item" style="grid-column: 1 / -1;">
+                            <div class="result-item-label">SHA-256</div>
+                            <div class="result-item-value" id="file-sha256" style="font-family: monospace; font-size: 0.85rem; word-break: break-all;">-</div>
+                        </div>
                     </div>
-                    <div style="margin-top: 10px; padding: 8px; background: white; border-radius: 4px;">
-                        <div style="color: #666; font-size: 11px; margin-bottom: 5px;">Console Log:</div>
-                        <div id="debugLog" style="max-height: 100px; overflow-y: auto; color: #333;"></div>
+                </div>
+
+                <!-- Battery Status -->
+                <div class="result-card">
+                    <h3>🔋 Battery Status</h3>
+                    <div class="result-grid">
+                        <div class="result-item">
+                            <div class="result-item-label">Level</div>
+                            <div class="result-item-value" id="battery-level">-</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-item-label">Health</div>
+                            <div class="result-item-value" id="battery-health">-</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-item-label">Temperature</div>
+                            <div class="result-item-value" id="battery-temp">-</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-item-label">Voltage</div>
+                            <div class="result-item-value" id="battery-voltage">-</div>
+                        </div>
                     </div>
+                </div>
+
+                <!-- System Statistics -->
+                <div class="result-card">
+                    <h3>📈 System Statistics</h3>
+                    <div class="result-grid">
+                        <div class="result-item">
+                            <div class="result-item-label">Processes</div>
+                            <div class="result-item-value" id="stats-processes">-</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-item-label">Unique Packages</div>
+                            <div class="result-item-value" id="stats-packages">-</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-item-label">Security Analysis</div>
+                            <div class="result-item-value" id="stats-security">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detailed Process List -->
+                <div class="result-card" id="process-details-card" style="display: none;">
+                    <div class="section-header">
+                        <h3>⚙️ Running Processes</h3>
+                        <span class="count-badge" id="process-count-badge">0</span>
+                    </div>
+                    <button class="section-toggle" onclick="toggleSection('process-details')">▼</button>
+                    <div class="section-content" id="process-details-content">
+                        <div class="search-box">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="process-search" placeholder="Search processes by name or PID...">
+                        </div>
+                        <div class="data-table-container">
+                            <table class="data-table" id="process-table">
+                                <thead>
+                                    <tr>
+                                        <th>PID</th>
+                                        <th>Name</th>
+                                        <th>User</th>
+                                        <th>CPU%</th>
+                                        <th>Memory</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="process-table-body">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detailed Battery Stats -->
+                <div class="result-card" id="battery-details-card" style="display: none;">
+                    <div class="section-header">
+                        <h3>🔋 App Battery Usage</h3>
+                        <span class="count-badge" id="battery-apps-count-badge">0</span>
+                    </div>
+                    <button class="section-toggle" onclick="toggleSection('battery-details')">▼</button>
+                    <div class="section-content" id="battery-details-content">
+                        <div class="search-box">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="battery-search" placeholder="Search apps by package name...">
+                        </div>
+                        <div class="data-table-container">
+                            <table class="data-table" id="battery-table">
+                                <thead>
+                                    <tr>
+                                        <th>Package Name</th>
+                                        <th>UID</th>
+                                        <th>CPU Time</th>
+                                        <th>Network (RX/TX)</th>
+                                        <th>Wakelock Time</th>
+                                        <th>Job Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="battery-table-body">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Package Installation History -->
+                <div class="result-card" id="package-history-card" style="display: none;">
+                    <div class="section-header">
+                        <h3>📦 Package Installation History</h3>
+                        <span class="count-badge" id="package-count-badge">0</span>
+                    </div>
+                    <button class="section-toggle" onclick="toggleSection('package-history')">▼</button>
+                    <div class="section-content" id="package-history-content">
+                        <div class="search-box">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="package-search-input" placeholder="Search packages by name or installer...">
+                        </div>
+                        <div id="package-list"></div>
+                    </div>
+                </div>
+
+                <!-- Package Details -->
+                <div class="result-card" id="package-details-card" style="display: none;">
+                    <div class="section-header">
+                        <h3>📱 Package Details</h3>
+                        <span class="count-badge" id="package-details-count-badge">0</span>
+                    </div>
+                    <button class="section-toggle collapsed" onclick="toggleSection('package-details')">▼</button>
+                    <div class="section-content collapsed" id="package-details-content">
+                        <div class="search-box">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="package-details-search-input" placeholder="Search packages by name...">
+                        </div>
+                        <div id="package-details-list"></div>
+                    </div>
+                </div>
+
+                <!-- Power History -->
+                <div class="result-card" id="power-history-card" style="display: none;">
+                    <div class="section-header">
+                        <h3>⚡ Power History</h3>
+                        <span class="count-badge" id="power-history-count-badge">0</span>
+                    </div>
+                    <button class="section-toggle collapsed" onclick="toggleSection('power-history')">▼</button>
+                    <div class="section-content collapsed" id="power-history-content">
+                        <div id="power-history-list"></div>
+                    </div>
+                </div>
+
+                <!-- Full Data (JSON) -->
+                <div class="result-card">
+                    <div class="section-header">
+                        <h3>📋 Full Data (JSON)</h3>
+                    </div>
+                    <button class="section-toggle collapsed" onclick="toggleSection('json-output')">▼</button>
+                    <div class="section-content collapsed" id="json-output-content">
+                        <div class="json-viewer" id="json-output">Analyzing...</div>
+                    </div>
+                </div>
+                
+                <!-- Results Actions -->
+                <div id="results-actions" style="margin-top: 1.5rem; display: none; gap: 0.5rem; flex-wrap: wrap;">
+                    <button onclick="downloadResults()" style="background: #4CAF50; color: white;">
+                        📥 Download JSON
+                    </button>
+                    <button onclick="copyResults()" style="background: var(--accent); color: white;">
+                        📋 Copy to Clipboard
+                    </button>
                 </div>
             </div>
         </div>
 
-        <!-- Logcat Section -->
-        <div class="section">
-            <h2>📝 Logcat</h2>
-            <p>View device logs for debugging and troubleshooting.</p>
-
-            <div class="logcat-controls">
-                <input type="number" id="logcatLines" value="100" min="10" max="10000" placeholder="Lines">
-                <button id="logcatBtn" disabled>Get Logcat</button>
-                <button id="logcatClearBtn" disabled>Clear Logcat</button>
-                <button id="downloadLogBtn" class="download-btn" disabled>Download Log</button>
-            </div>
-
-            <div id="logcatOutput" class="output"></div>
-        </div>
-
-        <!-- File Browser Section -->
-        <div class="section">
-            <h2>📁 File Browser</h2>
-            <p>Browse and download files from your device.</p>
-
-            <div class="logcat-controls">
-                <input type="text" id="filePath" value="/sdcard" placeholder="Path">
-                <button id="listBtn" disabled>List Directory</button>
-                <button id="statBtn" disabled>Get File Info</button>
-            </div>
-
-            <div id="fileList" class="file-list" style="display: none;"></div>
-            
-            <div id="fileStatOutput" class="output" style="display: none;"></div>
-        </div>
-
-        <!-- Screen Recording (future) -->
-        <div class="section">
-            <h2>🎥 Advanced Operations</h2>
-            <p>Additional diagnostic and data collection tools.</p>
-
-            <button id="screenshotBtn" disabled>Capture Screenshot</button>
-            <button id="dumpStateBtn" disabled>Dump System State</button>
-            <button id="packageListBtn" disabled>List All Packages</button>
-            
-            <div id="advancedOutput" class="output"></div>
-        </div>
+        <footer style="text-align: center; padding: 2rem 0; color: var(--text-secondary); font-size: 0.813rem;">
+            Built with WebADB & bugreport-extractor-library
+        </footer>
     </div>
 
     <script type="module">
         import init, { Adb, generate_keypair, has_keypair } from './pkg/webadb_rs.js';
 
         let adb = null;
-        let currentReport = null;
-        let currentLog = null;
-        
-        // Shell state
-        let commandHistory = [];
-        let historyIndex = -1;
-        let isExecuting = false;
+        let uploadedFile = null;
+        let selectedBugreportPath = null;
+        let currentResults = null;
 
-        // Shell functions
-        async function executeShellCommand() {
-            const input = document.getElementById('shellInput');
-            const output = document.getElementById('terminalOutput');
-            const command = input.value.trim();
+        window.adb = null;
+        
+        // Section toggle functionality
+        window.toggleSection = function(sectionId) {
+            const content = document.getElementById(sectionId + '-content');
+            const toggle = event.target;
             
-            if (!command || isExecuting) return;
-            
-            // Add to history
-            if (commandHistory.length === 0 || commandHistory[commandHistory.length - 1] !== command) {
-                commandHistory.push(command);
+            if (content.classList.contains('collapsed')) {
+                content.classList.remove('collapsed');
+                toggle.classList.remove('collapsed');
+            } else {
+                content.classList.add('collapsed');
+                toggle.classList.add('collapsed');
             }
-            historyIndex = commandHistory.length;
-            
-            // Display command
-            appendTerminal(`$ ${command}\n`, '#00ff00');
-            input.value = '';
-            input.disabled = true;
-            isExecuting = true;
-            
+        }
+        
+        // Calculate SHA-256 hash
+        async function calculateHash(data) {
             try {
-                const result = await adb.shell(command);
-                appendTerminal(result + '\n', '#d4d4d4');
+                const buffer = data.buffer || data;
+                const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
+                const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+                return hashHex;
             } catch (error) {
-                appendTerminal(`Error: ${error}\n`, '#ff6b6b');
-            } finally {
-                input.disabled = false;
-                input.focus();
-                isExecuting = false;
+                console.error('Hash calculation failed:', error);
+                return 'Error calculating hash';
             }
         }
         
-        function executeQuickCommand(command) {
-            const input = document.getElementById('shellInput');
-            input.value = command;
-            executeShellCommand();
-        }
-        
-        function appendTerminal(text, color = '#d4d4d4') {
-            const output = document.getElementById('terminalOutput');
-            const span = document.createElement('span');
-            span.style.color = color;
-            span.textContent = text;
-            output.appendChild(span);
-            output.scrollTop = output.scrollHeight;
-        }
-        
-        function clearTerminal() {
-            const output = document.getElementById('terminalOutput');
-            output.innerHTML = '$ <span style="color: #888;">Terminal cleared. Ready for commands.</span>';
-        }
-        
-        function handleShellKeydown(event) {
-            const input = document.getElementById('shellInput');
-            
-            // Enter key
-            if (event.key === 'Enter') {
-                event.preventDefault();
-                executeShellCommand();
+        // Download results
+        window.downloadResults = function() {
+            if (!currentResults) {
+                showStatus('⚠️ No results to download', 'error');
                 return;
             }
             
-            // Up arrow - previous command
-            if (event.key === 'ArrowUp') {
-                event.preventDefault();
-                if (historyIndex > 0) {
-                    historyIndex--;
-                    input.value = commandHistory[historyIndex];
-                }
-                return;
-            }
-            
-            // Down arrow - next command
-            if (event.key === 'ArrowDown') {
-                event.preventDefault();
-                if (historyIndex < commandHistory.length - 1) {
-                    historyIndex++;
-                    input.value = commandHistory[historyIndex];
-                } else {
-                    historyIndex = commandHistory.length;
-                    input.value = '';
-                }
-                return;
-            }
-            
-            // Ctrl+C - clear input
-            if (event.ctrlKey && event.key === 'c') {
-                event.preventDefault();
-                input.value = '';
-                return;
-            }
-            
-            // Ctrl+L - clear terminal
-            if (event.ctrlKey && event.key === 'l') {
-                event.preventDefault();
-                clearTerminal();
-                return;
-            }
-        }
-
-        // File Manager State
-        let currentPath = '/sdcard';
-        let fileList = [];
-        let selectedFiles = new Set();
-        let fileHistory = [];
-        let fileHistoryIndex = -1;
-        let contextMenuTarget = null;
-        let renameTarget = null;
-        let sortBy = 'name';
-        let sortAsc = true;
-
-        // File Manager Functions
-        async function navigateToPath(path) {
-            try {
-                currentPath = path;
-                fileHistory.push(path);
-                fileHistoryIndex = fileHistory.length - 1;
-                await refreshFileList();
-                updateNavigationButtons();
-            } catch (error) {
-                showError('Failed to navigate: ' + error);
-            }
-        }
-
-        async function refreshFileList() {
-            try {
-                const entries = await adb.list_directory(currentPath);
-                fileList = entries;
-                selectedFiles.clear();
-                renderFileList();
-                renderBreadcrumb();
-            } catch (error) {
-                showError('Failed to list directory: ' + error);
-                document.getElementById('fileTableBody').innerHTML = `
-                    <tr><td colspan="4" style="padding: 40px; text-align: center; color: #f44336;">
-                        Error loading directory: ${error}
-                    </td></tr>
-                `;
-            }
-        }
-
-        function renderFileList() {
-            const tbody = document.getElementById('fileTableBody');
-            const sortedList = sortFileList([...fileList]);
-            
-            if (sortedList.length === 0) {
-                tbody.innerHTML = `
-                    <tr><td colspan="4" style="padding: 40px; text-align: center; color: #999;">
-                        This directory is empty
-                    </td></tr>
-                `;
-                return;
-            }
-
-            tbody.innerHTML = sortedList.map((entry, index) => {
-                const isDir = entry.is_directory;
-                const icon = getFileIcon(entry);
-                const size = isDir ? '-' : formatFileSize(entry.size);
-                const type = isDir ? 'Folder' : getFileType(entry.name);
-                const fullPath = currentPath.endsWith('/') ? currentPath + entry.name : currentPath + '/' + entry.name;
-                const isSelected = selectedFiles.has(fullPath);
-                
-                return `
-                    <tr class="${isSelected ? 'selected' : ''}" data-path="${fullPath}" data-index="${index}">
-                        <td>
-                            <div class="file-row-name">
-                                <input type="checkbox" class="file-checkbox" data-path="${fullPath}" ${isSelected ? 'checked' : ''} onclick="toggleFileSelection('${fullPath}', event)">
-                                <span class="file-icon-large">${icon}</span>
-                                <span onclick="handleFileClick('${fullPath}', ${isDir})" style="flex: 1; cursor: pointer;">${entry.name}</span>
-                            </div>
-                        </td>
-                        <td style="text-align: right;">${size}</td>
-                        <td>${type}</td>
-                        <td style="text-align: center;">
-                            <button onclick="handleFileAction('${fullPath}', '${isDir ? 'open' : 'download'}')" style="background: #2196F3; color: white; padding: 4px 12px; font-size: 12px;">
-                                ${isDir ? '📂 Open' : '📥 Download'}
-                            </button>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
-
-            // Add right-click listeners
-            tbody.querySelectorAll('tr[data-path]').forEach(row => {
-                row.addEventListener('contextmenu', (e) => {
-                    e.preventDefault();
-                    showContextMenu(e, row.dataset.path);
-                });
-            });
-        }
-
-        function renderBreadcrumb() {
-            const nav = document.getElementById('breadcrumbNav');
-            const parts = currentPath.split('/').filter(p => p);
-            
-            let html = '<span class="breadcrumb-part" onclick="navigateToPath(\'/\')">🏠 root</span>';
-            let path = '';
-            
-            parts.forEach((part, index) => {
-                path += '/' + part;
-                const currentPath = path;
-                html += `<span class="breadcrumb-separator">/</span>`;
-                html += `<span class="breadcrumb-part" onclick="navigateToPath('${currentPath}')">${part}</span>`;
-            });
-            
-            nav.innerHTML = html;
-        }
-
-        function sortFileList(list) {
-            return list.sort((a, b) => {
-                // Folders first
-                if (a.is_directory && !b.is_directory) return -1;
-                if (!a.is_directory && b.is_directory) return 1;
-                
-                // Then by sort field
-                let aVal, bVal;
-                if (sortBy === 'name') {
-                    aVal = a.name.toLowerCase();
-                    bVal = b.name.toLowerCase();
-                } else if (sortBy === 'size') {
-                    aVal = a.size || 0;
-                    bVal = b.size || 0;
-                }
-                
-                if (aVal < bVal) return sortAsc ? -1 : 1;
-                if (aVal > bVal) return sortAsc ? 1 : -1;
-                return 0;
-            });
-        }
-
-        function getFileIcon(entry) {
-            if (entry.is_directory) return '📁';
-            
-            const ext = entry.name.split('.').pop().toLowerCase();
-            const iconMap = {
-                // Images
-                'jpg': '🖼️', 'jpeg': '🖼️', 'png': '🖼️', 'gif': '🖼️', 'webp': '🖼️', 'bmp': '🖼️',
-                // Videos
-                'mp4': '🎬', 'avi': '🎬', 'mkv': '🎬', 'mov': '🎬', 'wmv': '🎬',
-                // Audio
-                'mp3': '🎵', 'wav': '🎵', 'm4a': '🎵', 'flac': '🎵', 'ogg': '🎵',
-                // Documents
-                'pdf': '📄', 'doc': '📄', 'docx': '📄', 'txt': '📝', 'log': '📝',
-                // Archives
-                'zip': '📦', 'rar': '📦', 'tar': '📦', 'gz': '📦', '7z': '📦', 'apk': '📦',
-                // Code
-                'js': '📜', 'html': '📜', 'css': '📜', 'json': '📜', 'xml': '📜',
+            const data = {
+                analysis_timestamp: currentResults.analysis_timestamp || new Date().toISOString(),
+                file_info: currentResults.file_info,
+                device_info: currentResults.device_info,
+                battery_info: currentResults.battery_info,
+                process_count: currentResults.process_count,
+                package_count: currentResults.package_count,
+                has_security_analysis: currentResults.has_security_analysis,
+                packages: currentResults.packages,
+                processes: currentResults.processes,
+                battery_apps: currentResults.battery_apps,
+                package_details: currentResults.package_details || [],
+                power_history: currentResults.power_history || []
             };
             
-            return iconMap[ext] || '📄';
-        }
-
-        function getFileType(filename) {
-            const ext = filename.split('.').pop().toLowerCase();
-            const typeMap = {
-                'jpg': 'Image', 'jpeg': 'Image', 'png': 'Image', 'gif': 'Image',
-                'mp4': 'Video', 'avi': 'Video', 'mkv': 'Video',
-                'mp3': 'Audio', 'wav': 'Audio', 'm4a': 'Audio',
-                'pdf': 'PDF', 'txt': 'Text', 'log': 'Log',
-                'zip': 'Archive', 'apk': 'APK',
-            };
-            return typeMap[ext] || 'File';
-        }
-
-        function formatFileSize(bytes) {
-            if (bytes === 0) return '0 B';
-            const k = 1024;
-            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
-        }
-
-        async function handleFileClick(path, isDirectory) {
-            if (isDirectory) {
-                await navigateToPath(path);
-            } else {
-                await downloadFile(path);
-            }
-        }
-
-        async function handleFileAction(path, action) {
-            if (action === 'open') {
-                await navigateToPath(path);
-            } else if (action === 'download') {
-                await downloadFile(path);
-            }
-        }
-
-        async function downloadFile(path) {
-            try {
-                showSuccess('Downloading: ' + path.split('/').pop());
-                const data = await adb.pull_file(path);
-                const blob = new Blob([data]);
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = path.split('/').pop();
-                a.click();
-                URL.revokeObjectURL(url);
-                showSuccess('Downloaded: ' + path.split('/').pop());
-            } catch (error) {
-                showError('Download failed: ' + error);
-            }
-        }
-
-        async function uploadFiles(files) {
-            const modal = document.getElementById('uploadProgressModal');
-            const fileName = document.getElementById('uploadFileName');
-            const progressBar = document.getElementById('uploadProgressBar');
-            const progressText = document.getElementById('uploadProgressText');
-            const status = document.getElementById('uploadStatus');
-            
-            modal.style.display = 'flex';
-            
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                fileName.textContent = `${file.name} (${i + 1}/${files.length})`;
-                status.textContent = 'Reading file...';
-                
-                try {
-                    const arrayBuffer = await file.arrayBuffer();
-                    const data = new Uint8Array(arrayBuffer);
-                    
-                    status.textContent = 'Uploading...';
-                    const remotePath = currentPath.endsWith('/') ? 
-                        currentPath + file.name : 
-                        currentPath + '/' + file.name;
-                    
-                    await adb.push_file(data, remotePath);
-                    
-                    progressBar.style.width = ((i + 1) / files.length * 100) + '%';
-                    progressText.textContent = Math.round((i + 1) / files.length * 100) + '%';
-                    status.textContent = 'Complete!';
-                    
-                } catch (error) {
-                    showError('Upload failed for ' + file.name + ': ' + error);
-                    break;
-                }
-            }
-            
-            setTimeout(() => {
-                modal.style.display = 'none';
-                progressBar.style.width = '0%';
-                refreshFileList();
-            }, 1000);
-        }
-
-        function toggleFileSelection(path, event) {
-            if (event) event.stopPropagation();
-            
-            if (selectedFiles.has(path)) {
-                selectedFiles.delete(path);
-            } else {
-                selectedFiles.add(path);
-            }
-            
-            renderFileList();
-        }
-
-        function selectAllFiles() {
-            fileList.forEach(entry => {
-                const path = currentPath.endsWith('/') ? currentPath + entry.name : currentPath + '/' + entry.name;
-                selectedFiles.add(path);
-            });
-            renderFileList();
-        }
-
-        function deselectAllFiles() {
-            selectedFiles.clear();
-            renderFileList();
-        }
-
-        function showContextMenu(event, path) {
-            const menu = document.getElementById('fileContextMenu');
-            contextMenuTarget = path;
-            
-            menu.style.display = 'block';
-            menu.style.left = event.pageX + 'px';
-            menu.style.top = event.pageY + 'px';
-        }
-
-        function hideContextMenu() {
-            document.getElementById('fileContextMenu').style.display = 'none';
-        }
-
-        async function handleContextMenuAction(action) {
-            hideContextMenu();
-            
-            if (!contextMenuTarget) return;
-            
-            const entry = fileList.find(e => {
-                const path = currentPath.endsWith('/') ? currentPath + e.name : currentPath + '/' + e.name;
-                return path === contextMenuTarget;
-            });
-            
-            switch (action) {
-                case 'open':
-                    if (entry && entry.is_directory) {
-                        await navigateToPath(contextMenuTarget);
-                    }
-                    break;
-                case 'download':
-                    await downloadFile(contextMenuTarget);
-                    break;
-                case 'rename':
-                    showRenameDialog(contextMenuTarget);
-                    break;
-                case 'delete':
-                    showDeleteConfirm(contextMenuTarget);
-                    break;
-                case 'copypath':
-                    navigator.clipboard.writeText(contextMenuTarget);
-                    showSuccess('Path copied to clipboard');
-                    break;
-            }
-        }
-
-        function showRenameDialog(path) {
-            renameTarget = path;
-            const name = path.split('/').pop();
-            document.getElementById('renameInput').value = name;
-            document.getElementById('renameModal').style.display = 'flex';
-            document.getElementById('renameInput').focus();
-            document.getElementById('renameInput').select();
-        }
-
-        function closeRenameModal() {
-            document.getElementById('renameModal').style.display = 'none';
-            renameTarget = null;
-        }
-
-        async function confirmRename() {
-            const newName = document.getElementById('renameInput').value.trim();
-            if (!newName || !renameTarget) return;
-            
-            const parentPath = renameTarget.substring(0, renameTarget.lastIndexOf('/'));
-            const newPath = parentPath + '/' + newName;
-            
-            try {
-                await adb.rename_file(renameTarget, newPath);
-                showSuccess('Renamed successfully');
-                closeRenameModal();
-                await refreshFileList();
-            } catch (error) {
-                showError('Rename failed: ' + error);
-            }
-        }
-
-        function showNewFolderDialog() {
-            document.getElementById('newFolderInput').value = '';
-            document.getElementById('newFolderModal').style.display = 'flex';
-            document.getElementById('newFolderInput').focus();
-        }
-
-        function closeNewFolderModal() {
-            document.getElementById('newFolderModal').style.display = 'none';
-        }
-
-        async function confirmNewFolder() {
-            const name = document.getElementById('newFolderInput').value.trim();
-            if (!name) return;
-            
-            const newPath = currentPath.endsWith('/') ? currentPath + name : currentPath + '/' + name;
-            
-            try {
-                await adb.create_directory(newPath);
-                showSuccess('Folder created');
-                closeNewFolderModal();
-                await refreshFileList();
-            } catch (error) {
-                showError('Create folder failed: ' + error);
-            }
-        }
-
-        function showDeleteConfirm(path) {
-            const name = path.split('/').pop();
-            document.getElementById('deleteConfirmText').textContent = 
-                `Are you sure you want to delete "${name}"?`;
-            document.getElementById('deleteConfirmModal').style.display = 'flex';
-            contextMenuTarget = path;
-        }
-
-        function closeDeleteConfirmModal() {
-            document.getElementById('deleteConfirmModal').style.display = 'none';
-        }
-
-        async function confirmDelete() {
-            if (!contextMenuTarget) return;
-            
-            try {
-                await adb.delete_path(contextMenuTarget);
-                showSuccess('Deleted successfully');
-                closeDeleteConfirmModal();
-                await refreshFileList();
-            } catch (error) {
-                showError('Delete failed: ' + error);
-            }
-        }
-
-        function updateNavigationButtons() {
-            document.getElementById('fileNavBack').disabled = fileHistoryIndex <= 0;
-            document.getElementById('fileNavUp').disabled = currentPath === '/';
-        }
-
-        async function navigateBack() {
-            if (fileHistoryIndex > 0) {
-                fileHistoryIndex--;
-                currentPath = fileHistory[fileHistoryIndex];
-                await refreshFileList();
-                updateNavigationButtons();
-            }
-        }
-
-        async function navigateUp() {
-            if (currentPath === '/') return;
-            const parent = currentPath.substring(0, currentPath.lastIndexOf('/')) || '/';
-            await navigateToPath(parent);
-        }
-
-        function setupFileManagerListeners() {
-            // Navigation
-            document.getElementById('fileNavBack').addEventListener('click', navigateBack);
-            document.getElementById('fileNavUp').addEventListener('click', navigateUp);
-            document.getElementById('fileRefresh').addEventListener('click', refreshFileList);
-            
-            // Quick paths
-            document.querySelectorAll('.quickPath').forEach(btn => {
-                btn.addEventListener('click', () => navigateToPath(btn.dataset.path));
-            });
-            
-            // Upload
-            document.getElementById('fileUploadBtn').addEventListener('click', () => {
-                document.getElementById('fileUploadInput').click();
-            });
-            
-            document.getElementById('fileUploadInput').addEventListener('change', (e) => {
-                if (e.target.files.length > 0) {
-                    uploadFiles(Array.from(e.target.files));
-                    e.target.value = '';
-                }
-            });
-            
-            // New folder
-            document.getElementById('fileNewFolderBtn').addEventListener('click', showNewFolderDialog);
-            
-            // Selection
-            document.getElementById('fileSelectAllBtn').addEventListener('click', selectAllFiles);
-            document.getElementById('fileDeselectAllBtn').addEventListener('click', deselectAllFiles);
-            
-            // Context menu
-            document.querySelectorAll('.context-menu-item').forEach(item => {
-                item.addEventListener('click', () => {
-                    handleContextMenuAction(item.dataset.action);
-                });
-            });
-            
-            // Hide context menu on click outside
-            document.addEventListener('click', (e) => {
-                if (!e.target.closest('#fileContextMenu')) {
-                    hideContextMenu();
-                }
-            });
-            
-            // Drag and drop
-            const dropZone = document.getElementById('fileDropZone');
-            
-            document.addEventListener('dragenter', (e) => {
-                if (e.dataTransfer.types.includes('Files')) {
-                    e.preventDefault();
-                    dropZone.classList.add('active');
-                    document.getElementById('dropZonePath').textContent = currentPath;
-                }
-            });
-            
-            dropZone.addEventListener('dragleave', (e) => {
-                if (e.target === dropZone) {
-                    dropZone.classList.remove('active');
-                }
-            });
-            
-            dropZone.addEventListener('dragover', (e) => {
-                e.preventDefault();
-            });
-            
-            dropZone.addEventListener('drop', async (e) => {
-                e.preventDefault();
-                dropZone.classList.remove('active');
-                
-                const files = Array.from(e.dataTransfer.files);
-                if (files.length > 0) {
-                    await uploadFiles(files);
-                }
-            });
-            
-            // Sorting
-            document.querySelector('th[data-sort="name"]').addEventListener('click', () => {
-                if (sortBy === 'name') {
-                    sortAsc = !sortAsc;
-                } else {
-                    sortBy = 'name';
-                    sortAsc = true;
-                }
-                document.getElementById('sortNameIndicator').textContent = sortAsc ? '▼' : '▲';
-                document.getElementById('sortSizeIndicator').textContent = '';
-                renderFileList();
-            });
-            
-            document.querySelector('th[data-sort="size"]').addEventListener('click', () => {
-                if (sortBy === 'size') {
-                    sortAsc = !sortAsc;
-                } else {
-                    sortBy = 'size';
-                    sortAsc = true;
-                }
-                document.getElementById('sortSizeIndicator').textContent = sortAsc ? '▼' : '▲';
-                document.getElementById('sortNameIndicator').textContent = '';
-                renderFileList();
-            });
-            
-            // Keyboard shortcuts
-            document.addEventListener('keydown', (e) => {
-                // Only handle if no modal is open
-                if (document.querySelector('.modal[style*="flex"]')) return;
-                
-                if (e.key === 'F5') {
-                    e.preventDefault();
-                    refreshFileList();
-                }
-                
-                if (e.key === 'Delete' && selectedFiles.size > 0) {
-                    e.preventDefault();
-                    const firstPath = Array.from(selectedFiles)[0];
-                    showDeleteConfirm(firstPath);
-                }
-                
-                if (e.key === 'Backspace' && currentPath !== '/') {
-                    e.preventDefault();
-                    navigateUp();
-                }
-            });
-            
-            // Enter key for rename modal
-            document.getElementById('renameInput').addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    confirmRename();
-                } else if (e.key === 'Escape') {
-                    closeRenameModal();
-                }
-            });
-            
-            // Enter key for new folder modal
-            document.getElementById('newFolderInput').addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    confirmNewFolder();
-                } else if (e.key === 'Escape') {
-                    closeNewFolderModal();
-                }
-            });
-        }
-
-        async function enableFileManager() {
-            // Enable all file manager buttons
-            document.querySelectorAll('.quickPath').forEach(btn => btn.disabled = false);
-            document.getElementById('fileNavBack').disabled = false;
-            document.getElementById('fileNavUp').disabled = false;
-            document.getElementById('fileRefresh').disabled = false;
-            document.getElementById('fileUploadBtn').disabled = false;
-            document.getElementById('fileNewFolderBtn').disabled = false;
-            document.getElementById('fileSelectAllBtn').disabled = false;
-            document.getElementById('fileDeselectAllBtn').disabled = false;
-            
-            // Load initial directory
-            await navigateToPath('/sdcard');
-        }
-
-        function disableFileManager() {
-            // Disable all file manager buttons
-            document.querySelectorAll('.quickPath').forEach(btn => btn.disabled = true);
-            document.getElementById('fileNavBack').disabled = true;
-            document.getElementById('fileNavUp').disabled = true;
-            document.getElementById('fileRefresh').disabled = true;
-            document.getElementById('fileUploadBtn').disabled = true;
-            document.getElementById('fileNewFolderBtn').disabled = true;
-            document.getElementById('fileSelectAllBtn').disabled = true;
-            document.getElementById('fileDeselectAllBtn').disabled = true;
-            
-            // Clear file list
-            document.getElementById('fileTableBody').innerHTML = `
-                <tr><td colspan="4" style="padding: 40px; text-align: center; color: #999;">
-                    Connect to a device to browse files
-                </td></tr>
-            `;
-            document.getElementById('breadcrumbNav').innerHTML = '<span style="color: #666;">Not connected</span>';
-        }
-
-        async function main() {
-            await init();
-
-            if (!await has_keypair()) {
-                await generate_keypair();
-            }
-
-            adb = new Adb();
-
-            setupEventListeners();
-        }
-
-        function setupEventListeners() {
-            document.getElementById('connectBtn').addEventListener('click', connect);
-            document.getElementById('disconnectBtn').addEventListener('click', disconnect);
-            
-            // Diagnostics
-            document.getElementById('healthCheckBtn').addEventListener('click', performHealthCheck);
-            document.getElementById('cleanupStreamsBtn').addEventListener('click', cleanupStaleStreams);
-            document.getElementById('refreshDiagnosticsBtn').addEventListener('click', refreshDiagnostics);
-            
-            // Bugreport
-            document.getElementById('bugreportLiteBtn').addEventListener('click', generateLiteBugreport);
-            document.getElementById('bugreportFullBtn').addEventListener('click', generateFullBugreport);
-            document.getElementById('downloadReportBtn').addEventListener('click', downloadReport);
-            document.getElementById('viewReportBtn').addEventListener('click', viewReport);
-            document.getElementById('listBugreportsBtn').addEventListener('click', listAvailableBugreports);
-            
-            // Logcat
-            document.getElementById('logcatBtn').addEventListener('click', getLogcat);
-            document.getElementById('logcatClearBtn').addEventListener('click', clearLogcat);
-            document.getElementById('downloadLogBtn').addEventListener('click', downloadLog);
-            
-            // Files
-            document.getElementById('listBtn').addEventListener('click', listDirectory);
-            document.getElementById('statBtn').addEventListener('click', statFile);
-            
-            // Advanced
-            document.getElementById('screenshotBtn').addEventListener('click', captureScreenshot);
-            document.getElementById('dumpStateBtn').addEventListener('click', dumpState);
-            document.getElementById('packageListBtn').addEventListener('click', listPackages);
-            
-            // Shell
-            document.getElementById('shellInput').addEventListener('keydown', handleShellKeydown);
-            document.getElementById('shellExecuteBtn').addEventListener('click', executeShellCommand);
-            
-            // Shell quick commands
-            document.getElementById('shellCmdLs').addEventListener('click', () => executeQuickCommand('ls -la'));
-            document.getElementById('shellCmdPwd').addEventListener('click', () => executeQuickCommand('pwd'));
-            document.getElementById('shellCmdDf').addEventListener('click', () => executeQuickCommand('df -h'));
-            document.getElementById('shellCmdPs').addEventListener('click', () => executeQuickCommand('ps'));
-            document.getElementById('shellCmdVersion').addEventListener('click', () => executeQuickCommand('getprop | grep version'));
-            document.getElementById('shellCmdUname').addEventListener('click', () => executeQuickCommand('uname -a'));
-            document.getElementById('shellCmdClear').addEventListener('click', clearTerminal);
-            
-            // File Manager
-            setupFileManagerListeners();
-        }
-
-        async function connect() {
-            try {
-                updateStatus('working', 'Connecting...');
-                await adb.connect();
-                updateStatus('connected', 'Connected');
-                enableButtons();
-                await refreshDiagnostics();
-                
-                // Show terminal welcome
-                clearTerminal();
-                appendTerminal('='.repeat(60) + '\n', '#00ff00');
-                appendTerminal('  Android Device Shell - WebADB\n', '#00ff00');
-                appendTerminal('='.repeat(60) + '\n', '#00ff00');
-                
-                try {
-                    const props = await adb.get_properties();
-                    appendTerminal(`\n Device: ${props['ro.product.model'] || 'Unknown'}\n`, '#d4d4d4');
-                    appendTerminal(` Android: ${props['ro.build.version.release'] || 'Unknown'}\n`, '#d4d4d4');
-                    appendTerminal(` Build: ${props['ro.build.id'] || 'Unknown'}\n\n`, '#d4d4d4');
-                } catch (e) {
-                    appendTerminal('\n Device connected!\n\n', '#d4d4d4');
-                }
-                
-                appendTerminal('$ ', '#00ff00');
-                
-                // Enable file manager
-                await enableFileManager();
-            } catch (error) {
-                updateStatus('disconnected', 'Connection failed');
-                alert('Failed to connect: ' + error);
-            }
-        }
-
-        async function disconnect() {
-            try {
-                await adb.disconnect();
-                updateStatus('disconnected', 'Disconnected');
-                disableButtons();
-                disableFileManager();
-            } catch (error) {
-                alert('Failed to disconnect: ' + error);
-            }
-        }
-
-        // Diagnostics functions
-        async function refreshDiagnostics() {
-            try {
-                const count = adb.active_stream_count();
-                document.getElementById('streamCount').textContent = count;
-                
-                const log = document.getElementById('diagnosticsLog');
-                log.style.display = 'block';
-                const time = new Date().toLocaleTimeString();
-                log.innerHTML = `<div style="color: #2196F3;">[${time}] Refreshed - ${count} active stream(s)</div>` + log.innerHTML;
-            } catch (error) {
-                showError('Refresh failed: ' + error);
-            }
-        }
-        
-        async function performHealthCheck() {
-            const btn = document.getElementById('healthCheckBtn');
-            const status = document.getElementById('healthStatus');
-            const log = document.getElementById('diagnosticsLog');
-            
-            try {
-                btn.disabled = true;
-                btn.textContent = 'Checking...';
-                status.textContent = '...';
-                status.style.color = '#FF9800';
-                
-                const healthy = await adb.health_check();
-                
-                const time = new Date().toLocaleTimeString();
-                log.style.display = 'block';
-                
-                if (healthy) {
-                    status.textContent = '✓ Healthy';
-                    status.style.color = '#4CAF50';
-                    log.innerHTML = `<div style="color: #4CAF50;">[${time}] Health check PASSED</div>` + log.innerHTML;
-                    showSuccess('Device is responding');
-                } else {
-                    status.textContent = '✗ Unhealthy';
-                    status.style.color = '#f44336';
-                    log.innerHTML = `<div style="color: #f44336;">[${time}] Health check FAILED</div>` + log.innerHTML;
-                    showWarning('Device not responding properly');
-                }
-                
-                await refreshDiagnostics();
-            } catch (error) {
-                status.textContent = '✗ Error';
-                status.style.color = '#f44336';
-                showError('Health check error: ' + error);
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Check Health';
-            }
-        }
-        
-        async function cleanupStaleStreams() {
-            const btn = document.getElementById('cleanupStreamsBtn');
-            const countEl = document.getElementById('cleanedCount');
-            const log = document.getElementById('diagnosticsLog');
-            
-            try {
-                btn.disabled = true;
-                btn.textContent = 'Cleaning...';
-                
-                const cleaned = await adb.cleanup_stale_streams();
-                const total = parseInt(countEl.textContent) + cleaned;
-                countEl.textContent = total;
-                
-                const time = new Date().toLocaleTimeString();
-                log.style.display = 'block';
-                log.innerHTML = `<div style="color: #FF9800;">[${time}] Cleaned ${cleaned} stale stream(s)</div>` + log.innerHTML;
-                
-                if (cleaned > 0) {
-                    showSuccess(`Cleaned ${cleaned} stale stream(s)`);
-                } else {
-                    showSuccess('No stale streams found');
-                }
-                
-                await refreshDiagnostics();
-            } catch (error) {
-                showError('Cleanup failed: ' + error);
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Cleanup Stale';
-            }
-        }
-
-        async function generateLiteBugreport() {
-            const btn = document.getElementById('bugreportLiteBtn');
-            const output = document.getElementById('bugreportOutput');
-            const info = document.getElementById('bugreportInfo');
-            
-            try {
-                btn.disabled = true;
-                btn.textContent = 'Generating...';
-                output.style.display = 'block';
-                output.textContent = 'Generating lite bugreport...';
-                
-                const report = await adb.bugreport_lite();
-                
-                currentReport = new Blob([report], { type: 'text/plain' });
-                
-                output.textContent = report;
-                info.classList.add('show');
-                document.getElementById('reportSize').textContent = formatBytes(report.length);
-                document.getElementById('reportFormat').textContent = 'Text';
-                
-                showSuccess('Lite bugreport generated successfully!');
-            } catch (error) {
-                output.textContent = 'Error: ' + error;
-                showError('Failed to generate bugreport: ' + error);
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Generate Lite Report (Fast)';
-            }
-        }
-
-        async function generateFullBugreport() {
-            const btn = document.getElementById('bugreportFullBtn');
-            const progress = document.getElementById('bugreportProgress');
-            const progressBar = document.getElementById('bugreportProgressBar');
-            const output = document.getElementById('bugreportOutput');
-            const info = document.getElementById('bugreportInfo');
-            
-            try {
-                btn.disabled = true;
-                btn.textContent = 'Generating... (this may take 2-5 minutes)';
-                progress.classList.add('show');
-                progressBar.style.width = '10%';
-                progressBar.textContent = '10%';
-                output.style.display = 'none';
-                
-                showWarning('Generating full bugreport. This can take several minutes. Please wait...');
-                
-                // Simulate progress (we can't get real progress from ADB)
-                const progressInterval = setInterval(() => {
-                    const current = parseInt(progressBar.style.width);
-                    if (current < 90) {
-                        const next = current + 5;
-                        progressBar.style.width = next + '%';
-                        progressBar.textContent = next + '%';
-                    }
-                }, 3000);
-                
-                const reportData = await adb.bugreport();
-                
-                clearInterval(progressInterval);
-                progressBar.style.width = '100%';
-                progressBar.textContent = '100%';
-                
-                currentReport = new Blob([reportData], { type: 'application/zip' });
-                
-                info.classList.add('show');
-                document.getElementById('reportSize').textContent = formatBytes(reportData.byteLength);
-                document.getElementById('reportFormat').textContent = 'ZIP Archive';
-                
-                showSuccess('Full bugreport generated successfully!');
-                
-                setTimeout(() => {
-                    progress.classList.remove('show');
-                }, 2000);
-            } catch (error) {
-                showError('Failed to generate bugreport: ' + error);
-                progress.classList.remove('show');
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Generate Full Report (Slow)';
-            }
-        }
-
-        function downloadReport() {
-            if (!currentReport) return;
-            
-            const url = URL.createObjectURL(currentReport);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'bugreport-' + new Date().getTime() + 
-                         (currentReport.type.includes('zip') ? '.zip' : '.txt');
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-
-        function viewReport() {
-            const output = document.getElementById('bugreportOutput');
-            if (currentReport && currentReport.type === 'text/plain') {
-                output.style.display = 'block';
-                currentReport.text().then(text => {
-                    output.textContent = text;
-                });
-            } else {
-                alert('Binary reports cannot be viewed in browser. Please download.');
-            }
-        }
-
-        async function listAvailableBugreports() {
-            const btn = document.getElementById('listBugreportsBtn');
-            const output = document.getElementById('bugreportsList');
-            
-            try {
-                btn.disabled = true;
-                btn.textContent = 'Searching...';
-                output.style.display = 'block';
-                output.textContent = 'Searching for bugreports on device...';
-                
-                const paths = await adb.list_bugreports();
-                
-                if (paths.length === 0) {
-                    output.innerHTML = '<span style="color: #999;">No bugreports found on device.</span>';
-                    showWarning('No bugreports found. Generate one first using "Generate Full Report".');
-                    return;
-                }
-                
-                let html = `<div style="color: #4CAF50; margin-bottom: 15px;">Found ${paths.length} bugreport(s):</div>`;
-                
-                paths.forEach((path, index) => {
-                    const filename = path.split('/').pop();
-                    const isZip = path.endsWith('.zip');
-                    const icon = isZip ? '📦' : '📄';
-                    // Escape HTML attributes
-                    const escapedPath = path.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-                    
-                    html += `
-                        <div style="background: #2a2a2a; margin: 10px 0; padding: 15px; border-radius: 8px; border-left: 4px solid #667eea;">
-                            <div style="color: #d4d4d4; margin-bottom: 8px;">
-                                ${icon} <strong>${filename}</strong>
-                            </div>
-                            <div style="color: #888; font-size: 12px; margin-bottom: 10px;">
-                                ${path}
-                            </div>
-                            <button 
-                                class="download-bugreport-btn"
-                                data-path="${escapedPath}"
-                                style="background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; font-size: 14px;">
-                                Download
-                            </button>
-                        </div>
-                    `;
-                });
-                
-                output.innerHTML = html;
-                
-                // Attach event listeners to download buttons
-                document.querySelectorAll('.download-bugreport-btn').forEach(btn => {
-                    btn.addEventListener('click', function() {
-                        let path = this.getAttribute('data-path');
-                        // Decode HTML entities
-                        path = path.replace(/&quot;/g, '"').replace(/&#39;/g, "'");
-                        downloadExistingBugreport(path);
-                    });
-                });
-                
-                showSuccess(`Found ${paths.length} bugreport(s) on device.`);
-                
-            } catch (error) {
-                output.innerHTML = `<span style="color: #f44336;">Error: ${error}</span>`;
-                showError('Failed to list bugreports: ' + error);
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'List Available Bugreports';
-            }
-        }
-
-        async function downloadExistingBugreport(path) {
-            const filename = path.split('/').pop();
-            const debugPanel = document.getElementById('downloadDebug');
-            const debugStatus = document.getElementById('downloadStatus');
-            const debugFile = document.getElementById('debugFile');
-            const debugSize = document.getElementById('debugSize');
-            const debugTime = document.getElementById('debugTime');
-            const debugSpeed = document.getElementById('debugSpeed');
-            const debugLog = document.getElementById('debugLog');
-            const progressBar = document.getElementById('downloadProgressBar');
-            
-            function addLog(msg) {
-                const time = new Date().toLocaleTimeString();
-                debugLog.innerHTML += `<div>[${time}] ${msg}</div>`;
-                debugLog.scrollTop = debugLog.scrollHeight;
-                console.log(`[Download] ${msg}`);
-            }
-            
-            try {
-                // Show debug panel
-                debugPanel.style.display = 'block';
-                debugStatus.textContent = 'Starting...';
-                debugStatus.style.color = '#FF9800';
-                debugFile.textContent = filename;
-                debugSize.textContent = '...';
-                debugTime.textContent = '0s';
-                debugSpeed.textContent = '...';
-                debugLog.innerHTML = '';
-                progressBar.style.width = '0%';
-                progressBar.textContent = '';
-                
-                addLog(`Starting download: ${filename}`);
-                addLog(`Path: ${path}`);
-                
-                showWarning(`Downloading ${filename}... Please wait.`);
-                
-                const startTime = Date.now();
-                debugStatus.textContent = 'Downloading...';
-                debugStatus.style.color = '#2196F3';
-                progressBar.style.width = '30%';
-                progressBar.textContent = '30%';
-                
-                // Start timer
-                const timerInterval = setInterval(() => {
-                    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-                    debugTime.textContent = elapsed + 's';
-                }, 100);
-                
-                addLog('Requesting file from device...');
-                
-                const data = await adb.download_bugreport(path);
-                
-                clearInterval(timerInterval);
-                
-                const endTime = Date.now();
-                const duration = ((endTime - startTime) / 1000).toFixed(1);
-                const sizeStr = formatBytes(data.byteLength);
-                const speed = formatBytes(data.byteLength / (duration || 1)) + '/s';
-                
-                debugSize.textContent = sizeStr;
-                debugTime.textContent = duration + 's';
-                debugSpeed.textContent = speed;
-                progressBar.style.width = '100%';
-                progressBar.textContent = '100%';
-                
-                addLog(`Download complete!`);
-                addLog(`Size: ${sizeStr} (${data.byteLength} bytes)`);
-                addLog(`Duration: ${duration}s`);
-                addLog(`Average speed: ${speed}`);
-                
-                debugStatus.textContent = 'Saving...';
-                debugStatus.style.color = '#4CAF50';
-                
-                const blob = new Blob([data], { 
-                    type: path.endsWith('.zip') ? 'application/zip' : 'text/plain' 
-                });
-                
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename;
-                a.click();
-                URL.revokeObjectURL(url);
-                
-                debugStatus.textContent = 'Complete ✓';
-                debugStatus.style.color = '#4CAF50';
-                addLog('File saved successfully!');
-                
-                showSuccess(`Downloaded ${filename} (${sizeStr}) in ${duration}s at ${speed}`);
-                
-                // Hide debug panel after 5 seconds
-                setTimeout(() => {
-                    debugPanel.style.display = 'none';
-                }, 5000);
-                
-            } catch (error) {
-                debugStatus.textContent = 'Failed ✗';
-                debugStatus.style.color = '#f44336';
-                progressBar.style.width = '100%';
-                progressBar.style.background = '#f44336';
-                progressBar.textContent = 'ERROR';
-                
-                addLog(`ERROR: ${error}`);
-                console.error(`[Download] Failed:`, error);
-                showError(`Failed to download ${filename}: ${error}`);
-            }
-        }
-
-        async function getLogcat() {
-            const lines = parseInt(document.getElementById('logcatLines').value);
-            const output = document.getElementById('logcatOutput');
-            const downloadBtn = document.getElementById('downloadLogBtn');
-            
-            try {
-                output.textContent = 'Fetching logcat...';
-                const log = await adb.logcat(lines);
-                currentLog = log;
-                output.textContent = log;
-                downloadBtn.disabled = false;
-            } catch (error) {
-                output.textContent = 'Error: ' + error;
-                showError('Failed to get logcat: ' + error);
-            }
-        }
-
-        async function clearLogcat() {
-            try {
-                await adb.logcat_clear();
-                document.getElementById('logcatOutput').textContent = 'Logcat cleared.';
-                showSuccess('Logcat buffer cleared');
-            } catch (error) {
-                showError('Failed to clear logcat: ' + error);
-            }
-        }
-
-        function downloadLog() {
-            if (!currentLog) return;
-            
-            const blob = new Blob([currentLog], { type: 'text/plain' });
+            const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'logcat-' + new Date().getTime() + '.txt';
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+            a.download = `bugreport-analysis-${timestamp}.json`;
             a.click();
             URL.revokeObjectURL(url);
+            showStatus('✓ Results downloaded!', 'success');
         }
-
-        async function listDirectory() {
-            const path = document.getElementById('filePath').value;
-            const fileList = document.getElementById('fileList');
+        
+        // Copy results
+        window.copyResults = async function() {
+            if (!currentResults) {
+                showStatus('⚠️ No results to copy', 'error');
+                return;
+            }
             
             try {
-                fileList.innerHTML = 'Loading...';
-                fileList.style.display = 'block';
+                const data = {
+                    analysis_timestamp: currentResults.analysis_timestamp || new Date().toISOString(),
+                    file_info: currentResults.file_info,
+                    device_info: currentResults.device_info,
+                    battery_info: currentResults.battery_info,
+                    process_count: currentResults.process_count,
+                    package_count: currentResults.package_count,
+                    logcat_lines: currentResults.logcat_lines,
+                    has_security_analysis: currentResults.has_security_analysis,
+                    packages: currentResults.packages,
+                    processes: currentResults.processes,
+                    battery_apps: currentResults.battery_apps,
+                    package_details: currentResults.package_details || [],
+                    power_history: currentResults.power_history || []
+                };
                 
-                const entries = await adb.list_directory(path);
-                
-                fileList.innerHTML = '';
-                entries.forEach(entry => {
-                    const div = document.createElement('div');
-                    div.className = 'file-item';
-                    
-                    const icon = entry.is_directory ? '📁' : '📄';
-                    const size = entry.is_directory ? '' : ` (${formatBytes(entry.size)})`;
-                    
-                    div.innerHTML = `
-                        <span><span class="file-icon">${icon}</span>${entry.name}${size}</span>
-                        <button onclick="pullFile('${path}/${entry.name}')">Download</button>
-                    `;
-                    
-                    fileList.appendChild(div);
-                });
+                await navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+                showStatus('✓ Results copied to clipboard!', 'success');
             } catch (error) {
-                fileList.textContent = 'Error: ' + error;
-                showError('Failed to list directory: ' + error);
+                console.error('Copy error:', error);
+                showStatus('❌ Failed to copy: ' + error.message, 'error');
             }
         }
 
-        async function statFile() {
-            const path = document.getElementById('filePath').value;
-            const output = document.getElementById('fileStatOutput');
+        // Initialize WebAssembly
+        async function initWasm() {
+            const statusEl = document.getElementById('wasm-status');
             
             try {
-                output.style.display = 'block';
-                output.textContent = 'Getting file info...';
+                statusEl.textContent = '⏳ Loading WASM...';
+                statusEl.style.background = 'rgba(33, 150, 243, 0.1)';
+                statusEl.style.color = 'var(--accent)';
+                statusEl.style.borderColor = 'var(--accent)';
                 
-                const stat = await adb.stat_file(path);
+                await init();
                 
-                output.textContent = `File: ${path}
-Type: ${stat.is_directory ? 'Directory' : 'File'}
-Size: ${formatBytes(stat.size)}
-Mode: ${stat.mode.toString(8)}
-Modified: ${new Date(stat.mtime * 1000).toLocaleString()}`;
-            } catch (error) {
-                output.textContent = 'Error: ' + error;
-                showError('Failed to stat file: ' + error);
-            }
-        }
-
-        window.pullFile = async function(path) {
-            try {
-                showWarning('Downloading file: ' + path);
-                const data = await adb.pull_file(path);
+                statusEl.textContent = '🔑 Generating keys...';
                 
-                const blob = new Blob([data]);
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = path.split('/').pop();
-                a.click();
-                URL.revokeObjectURL(url);
-                
-                showSuccess('File downloaded successfully');
-            } catch (error) {
-                showError('Failed to pull file: ' + error);
-            }
-        };
-
-        async function captureScreenshot() {
-            const output = document.getElementById('advancedOutput');
-            try {
-                output.textContent = 'Capturing screenshot...';
-                const result = await adb.shell('screencap -p /sdcard/screenshot.png && echo "Screenshot saved to /sdcard/screenshot.png"');
-                output.textContent = result;
-                showSuccess('Screenshot captured! Pull /sdcard/screenshot.png to download');
-            } catch (error) {
-                output.textContent = 'Error: ' + error;
-            }
-        }
-
-        async function dumpState() {
-            const output = document.getElementById('advancedOutput');
-            try {
-                output.textContent = 'Dumping system state...';
-                const result = await adb.shell('dumpsys -l');
-                output.textContent = result;
-            } catch (error) {
-                output.textContent = 'Error: ' + error;
-            }
-        }
-
-        async function listPackages() {
-            const output = document.getElementById('advancedOutput');
-            try {
-                output.textContent = 'Listing packages...';
-                const result = await adb.shell('pm list packages');
-                output.textContent = result;
-            } catch (error) {
-                output.textContent = 'Error: ' + error;
-            }
-        }
-
-        function updateStatus(state, text) {
-            const statusEl = document.getElementById('status');
-            statusEl.className = 'status ' + state;
-            statusEl.textContent = 'Status: ' + text;
-        }
-
-        function enableButtons() {
-            document.querySelectorAll('button:not(#connectBtn)').forEach(btn => {
-                if (btn.id !== 'downloadReportBtn' && btn.id !== 'viewReportBtn' && btn.id !== 'downloadLogBtn') {
-                    btn.disabled = false;
+                if (!await has_keypair()) {
+                    await generate_keypair();
                 }
-            });
-            document.getElementById('connectBtn').disabled = true;
-            
-            // Enable shell
-            document.getElementById('shellInput').disabled = false;
-            document.getElementById('shellExecuteBtn').disabled = false;
-            document.getElementById('shellInput').focus();
+                
+                statusEl.textContent = '✓ Ready';
+                statusEl.style.background = 'rgba(76, 175, 80, 0.1)';
+                statusEl.style.color = 'var(--success)';
+                statusEl.style.borderColor = 'var(--success)';
+                
+                console.log('WebAssembly initialized');
+                
+                setTimeout(() => {
+                    statusEl.style.opacity = '0';
+                    setTimeout(() => {
+                        statusEl.style.display = 'none';
+                    }, 300);
+                }, 3000);
+            } catch (error) {
+                console.error('Failed to initialize:', error);
+                statusEl.textContent = '❌ Failed to load';
+                statusEl.style.background = 'rgba(244, 67, 54, 0.1)';
+                statusEl.style.color = 'var(--error)';
+                statusEl.style.borderColor = 'var(--error)';
+                showStatus('Failed to initialize: ' + error.message, 'error');
+            }
         }
 
-        function disableButtons() {
-            document.querySelectorAll('button:not(#connectBtn)').forEach(btn => {
-                btn.disabled = true;
-            });
-            document.getElementById('connectBtn').disabled = false;
+        initWasm();
+
+        // Theme toggle
+        window.toggleTheme = function() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
             
-            // Disable shell
-            document.getElementById('shellInput').disabled = true;
-            document.getElementById('shellExecuteBtn').disabled = true;
+            html.setAttribute('data-theme', newTheme);
+            
+            document.getElementById('theme-icon').textContent = newTheme === 'dark' ? '☀️' : '🌙';
+            document.getElementById('theme-text').textContent = newTheme === 'dark' ? 'Light' : 'Dark';
+            
+            localStorage.setItem('theme', newTheme);
         }
 
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        if (savedTheme === 'dark') {
+            toggleTheme();
+        }
+
+        // Tab switching
+        window.switchTab = function(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            document.getElementById('tab-generate').classList.add('hidden');
+            document.getElementById('tab-device').classList.add('hidden');
+            document.getElementById('tab-upload').classList.add('hidden');
+            
+            document.getElementById('tab-' + tab).classList.remove('hidden');
+            hideResults();
+        }
+
+        // Status messages
+        function showStatus(message, type = 'info') {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = 'status ' + type;
+        }
+
+        function hideStatus() {
+            document.getElementById('status').className = 'status';
+        }
+
+        function showProgress() {
+            document.getElementById('progress').classList.add('show');
+        }
+
+        function hideProgress() {
+            document.getElementById('progress').classList.remove('show');
+        }
+
+        function showResults() {
+            document.getElementById('results').classList.add('show');
+        }
+
+        function hideResults() {
+            document.getElementById('results').classList.remove('show');
+            const actionsEl = document.getElementById('results-actions');
+            if (actionsEl) {
+                actionsEl.style.display = 'none';
+            }
+        }
+
+        // Display process details
+        function displayProcessDetails(data) {
+            const processCard = document.getElementById('process-details-card');
+            const processTableBody = document.getElementById('process-table-body');
+            
+            if (!data.processes || !Array.isArray(data.processes) || data.processes.length === 0) {
+                processCard.style.display = 'none';
+                return;
+            }
+
+            processCard.style.display = 'block';
+            document.getElementById('process-count-badge').textContent = data.processes.length;
+
+            // Clear table
+            processTableBody.innerHTML = '';
+
+            // Add processes to table
+            data.processes.forEach(proc => {
+                const row = document.createElement('tr');
+                row.setAttribute('data-pid', proc.pid || '');
+                row.setAttribute('data-name', (proc.name || '').toLowerCase());
+                row.setAttribute('data-user', (proc.user || '').toLowerCase());
+                
+                row.innerHTML = `
+                    <td>${proc.pid || '-'}</td>
+                    <td>${proc.name || '-'}</td>
+                    <td>${proc.user || '-'}</td>
+                    <td>${proc.cpu_percent !== undefined ? proc.cpu_percent.toFixed(1) + '%' : '-'}</td>
+                    <td>${proc.memory || '-'}</td>
+                `;
+                
+                processTableBody.appendChild(row);
+            });
+
+            // Add search functionality
+            const searchInput = document.getElementById('process-search');
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.toLowerCase();
+                const rows = processTableBody.querySelectorAll('tr');
+                let visibleCount = 0;
+
+                rows.forEach(row => {
+                    const pid = row.getAttribute('data-pid');
+                    const name = row.getAttribute('data-name');
+                    const user = row.getAttribute('data-user');
+                    
+                    if (pid.includes(query) || name.includes(query) || user.includes(query)) {
+                        row.style.display = '';
+                        visibleCount++;
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            });
+        }
+
+        // Display battery details
+        function displayBatteryDetails(data) {
+            const batteryCard = document.getElementById('battery-details-card');
+            const batteryTableBody = document.getElementById('battery-table-body');
+            
+            if (!data.battery_apps || !Array.isArray(data.battery_apps) || data.battery_apps.length === 0) {
+                batteryCard.style.display = 'none';
+                return;
+            }
+
+            batteryCard.style.display = 'block';
+            document.getElementById('battery-apps-count-badge').textContent = data.battery_apps.length;
+
+            // Clear table
+            batteryTableBody.innerHTML = '';
+
+            // Add battery stats to table
+            data.battery_apps.forEach(batt => {
+                const row = document.createElement('tr');
+                const pkgName = batt.package_name || '';
+                row.setAttribute('data-package', pkgName.toLowerCase());
+                
+                // Format CPU time
+                const cpuTimeMs = batt.total_cpu_time_ms || 0;
+                const cpuTimeStr = cpuTimeMs > 0 ? formatTime(cpuTimeMs) : '-';
+                
+                // Format network usage
+                const networkRx = (batt.network_rx_mobile || 0) + (batt.network_rx_wifi || 0);
+                const networkTx = (batt.network_tx_mobile || 0) + (batt.network_tx_wifi || 0);
+                const networkStr = (networkRx > 0 || networkTx > 0) 
+                    ? `${formatBytes(networkRx)} / ${formatBytes(networkTx)}`
+                    : '-';
+                
+                // Format wakelock time
+                const wakelockTimeMs = batt.total_wakelock_time_ms || 0;
+                const wakelockStr = wakelockTimeMs > 0 ? formatTime(wakelockTimeMs) : '-';
+                
+                // Format job time
+                const jobTimeMs = batt.total_job_time_ms || 0;
+                const jobStr = jobTimeMs > 0 ? formatTime(jobTimeMs) : '-';
+                
+                row.innerHTML = `
+                    <td>${pkgName || '-'}</td>
+                    <td>${batt.uid || '-'}</td>
+                    <td>${cpuTimeStr}</td>
+                    <td>${networkStr}</td>
+                    <td>${wakelockStr}</td>
+                    <td>${jobStr}</td>
+                `;
+                
+                batteryTableBody.appendChild(row);
+            });
+
+            // Add search functionality
+            const searchInput = document.getElementById('battery-search');
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.toLowerCase();
+                const rows = batteryTableBody.querySelectorAll('tr');
+                let visibleCount = 0;
+
+                rows.forEach(row => {
+                    const pkg = row.getAttribute('data-package');
+                    
+                    if (pkg.includes(query)) {
+                        row.style.display = '';
+                        visibleCount++;
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            });
+        }
+
+        // Format bytes
         function formatBytes(bytes) {
-            if (bytes === 0) return '0 Bytes';
+            if (!bytes || bytes === 0) return '0 B';
             const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const sizes = ['B', 'KB', 'MB', 'GB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
         }
 
-        function showSuccess(message) {
-            showMessage(message, 'success');
+        // Format time in milliseconds to human-readable format
+        function formatTime(ms) {
+            if (!ms || ms === 0) return '0ms';
+            
+            const seconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(seconds / 60);
+            const hours = Math.floor(minutes / 60);
+            const days = Math.floor(hours / 24);
+            
+            if (days > 0) {
+                const remainingHours = hours % 24;
+                if (remainingHours > 0) {
+                    return `${days}d ${remainingHours}h`;
+                }
+                return `${days}d`;
+            }
+            
+            if (hours > 0) {
+                const remainingMinutes = minutes % 60;
+                if (remainingMinutes > 0) {
+                    return `${hours}h ${remainingMinutes}m`;
+                }
+                return `${hours}h`;
+            }
+            
+            if (minutes > 0) {
+                const remainingSeconds = seconds % 60;
+                if (remainingSeconds > 0) {
+                    return `${minutes}m ${remainingSeconds}s`;
+                }
+                return `${minutes}m`;
+            }
+            
+            if (seconds > 0) {
+                const remainingMs = ms % 1000;
+                if (remainingMs > 0) {
+                    return `${seconds}.${Math.floor(remainingMs / 100)}s`;
+                }
+                return `${seconds}s`;
+            }
+            
+            return `${ms}ms`;
         }
 
-        function showWarning(message) {
-            showMessage(message, 'warning');
+        // Display results
+        function displayResults(data) {
+            currentResults = data;
+            
+            // Device info
+            if (data.device_info) {
+                document.getElementById('device-manufacturer').textContent = data.device_info.manufacturer || 'Unknown';
+                document.getElementById('device-model').textContent = data.device_info.model || 'Unknown';
+                document.getElementById('device-android').textContent = data.device_info.android_version || 'Unknown';
+                document.getElementById('device-build').textContent = data.device_info.build_id || 'Unknown';
+                document.getElementById('device-kernel').textContent = data.device_info.kernel_version || 'Unknown';
+            }
+
+            // Battery info
+            if (data.battery_info) {
+                document.getElementById('battery-level').textContent = data.battery_info.level ? data.battery_info.level.toFixed(1) + '%' : '-';
+                document.getElementById('battery-health').textContent = data.battery_info.health || '-';
+                document.getElementById('battery-temp').textContent = data.battery_info.temperature ? data.battery_info.temperature.toFixed(1) + '°C' : '-';
+                document.getElementById('battery-voltage').textContent = data.battery_info.voltage ? data.battery_info.voltage.toFixed(2) + 'V' : '-';
+            }
+
+            // Stats
+            document.getElementById('stats-processes').textContent = data.process_count || 0;
+            document.getElementById('stats-packages').textContent = data.package_count || 0;
+            document.getElementById('stats-security').textContent = data.has_security_analysis ? '✓ Available' : '✗ None';
+
+            // File info
+            const fileInfoCard = document.getElementById('file-info-card');
+            if (data.file_info) {
+                document.getElementById('file-path').textContent = data.file_info.path || '-';
+                document.getElementById('file-size').textContent = data.file_info.size_mb ? `${data.file_info.size_mb} MB (${data.file_info.size_bytes.toLocaleString()} bytes)` : '-';
+                document.getElementById('file-sha256').textContent = data.file_info.sha256 || '-';
+                fileInfoCard.style.display = 'block';
+            } else {
+                fileInfoCard.style.display = 'none';
+            }
+
+            // Display detailed process list
+            displayProcessDetails(data);
+
+            // Display detailed battery stats
+            displayBatteryDetails(data);
+
+            // Package installation history
+            displayPackageHistory(data);
+
+            // Package details
+            displayPackageDetails(data);
+
+            // Power history
+            displayPowerHistory(data);
+
+            // JSON output
+            document.getElementById('json-output').textContent = JSON.stringify(data, null, 2);
+
+            // Display timestamp
+            const timestampEl = document.getElementById('analysis-timestamp');
+            const timestampValueEl = document.getElementById('timestamp-value');
+            if (data.analysis_timestamp) {
+                const date = new Date(data.analysis_timestamp);
+                const options = { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric', 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    second: '2-digit'
+                };
+                timestampValueEl.textContent = date.toLocaleString(undefined, options);
+                timestampEl.style.display = 'block';
+            } else {
+                timestampEl.style.display = 'none';
+            }
+
+            // Show action buttons
+            document.getElementById('results-actions').style.display = 'flex';
+
+            showResults();
         }
 
-        function showError(message) {
-            showMessage(message, 'error');
+        function displayPackageHistory(data) {
+            const packageHistoryCard = document.getElementById('package-history-card');
+            const packageListEl = document.getElementById('package-list');
+
+            // Use the packages array from Rust
+            let packages = [];
+            
+            if (data.packages && Array.isArray(data.packages) && data.packages.length > 0) {
+                // Use the structured packages data from Rust
+                packages = data.packages.map(pkg => ({
+                    packageName: pkg.package_name || 'Unknown',
+                    installer: pkg.installer || 'Unknown',
+                    timestamp: pkg.timestamp || '',
+                    versionCode: pkg.version_code || null,
+                    success: pkg.success !== undefined ? pkg.success : false,
+                    duration: pkg.duration_seconds ? pkg.duration_seconds.toFixed(1) : null
+                }));
+            }
+
+            if (packages.length === 0) {
+                packageHistoryCard.style.display = 'none';
+                return;
+            }
+
+            packageHistoryCard.style.display = 'block';
+            document.getElementById('package-count-badge').textContent = packages.length;
+
+            let html = '';
+
+            packages.forEach((pkg) => {
+                const statusClass = pkg.success ? 'success' : 'failed';
+                const statusText = pkg.success ? '✓ Installed' : '✗ Failed';
+                const installerName = pkg.installer ? formatInstaller(pkg.installer) : 'Unknown';
+                const versionText = pkg.versionCode ? `v${pkg.versionCode}` : '-';
+                
+                html += `
+                    <div class="package-item" data-package-name="${pkg.packageName.toLowerCase()}" data-installer="${installerName.toLowerCase()}" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-bottom: 0.75rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem; gap: 1rem;">
+                            <div style="font-family: monospace; font-size: 0.875rem; font-weight: 600; color: var(--text-primary); word-break: break-all; flex: 1;">${pkg.packageName}</div>
+                            <div style="padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 500; white-space: nowrap; background: ${pkg.success ? 'rgba(76, 175, 80, 0.1)' : 'rgba(244, 67, 54, 0.1)'}; color: ${pkg.success ? 'var(--success)' : 'var(--error)'}; border: 1px solid ${pkg.success ? 'var(--success)' : 'var(--error)'};">${statusText}</div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.5rem; margin-top: 0.75rem; font-size: 0.75rem;">
+                            <div><span style="color: var(--text-secondary); margin-right: 0.25rem;">📅 Installed:</span><span style="color: var(--text-primary); font-weight: 500;">${formatDate(pkg.timestamp)}</span></div>
+                            <div><span style="color: var(--text-secondary); margin-right: 0.25rem;">📦 Installer:</span><span style="color: var(--text-primary); font-weight: 500;">${installerName}</span></div>
+                            <div><span style="color: var(--text-secondary); margin-right: 0.25rem;">🔢 Version:</span><span style="color: var(--text-primary); font-weight: 500;">${versionText}</span></div>
+                            ${pkg.duration ? `<div><span style="color: var(--text-secondary); margin-right: 0.25rem;">⏱️ Duration:</span><span style="color: var(--text-primary); font-weight: 500;">${pkg.duration}s</span></div>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+
+            packageListEl.innerHTML = html;
+
+            // Add search functionality
+            const searchInput = document.getElementById('package-search-input');
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.toLowerCase();
+                const items = document.querySelectorAll('.package-item');
+                let visibleCount = 0;
+
+                items.forEach(item => {
+                    const packageName = item.getAttribute('data-package-name');
+                    const installer = item.getAttribute('data-installer');
+                    
+                    if (packageName.includes(query) || installer.includes(query)) {
+                        item.style.display = 'block';
+                        visibleCount++;
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            });
         }
 
-        function showMessage(message, type) {
+        function escapeHtml(text) {
+            if (!text) return '';
             const div = document.createElement('div');
-            div.className = type;
-            div.textContent = message;
-            document.querySelector('.container').insertBefore(
-                div, 
-                document.querySelector('.section')
-            );
-            setTimeout(() => div.remove(), 5000);
+            div.textContent = text;
+            return div.innerHTML;
         }
 
-        main().catch(console.error);
+        function displayPackageDetails(data) {
+            const packageDetailsCard = document.getElementById('package-details-card');
+            const packageDetailsListEl = document.getElementById('package-details-list');
+            const countBadge = document.getElementById('package-details-count-badge');
+
+            if (!data.package_details || !Array.isArray(data.package_details) || data.package_details.length === 0) {
+                packageDetailsCard.style.display = 'none';
+                return;
+            }
+
+            packageDetailsCard.style.display = 'block';
+            countBadge.textContent = data.package_details.length;
+
+            let html = '<div class="package-details-container">';
+            
+            data.package_details.forEach((pkg, index) => {
+                html += `<div class="package-detail-item" data-package-name="${pkg.package_name.toLowerCase()}">`;
+                html += `<div class="package-detail-header">`;
+                html += `<h4>${escapeHtml(pkg.package_name)}</h4>`;
+                if (pkg.version_name) {
+                    html += `<span class="version-badge">v${escapeHtml(pkg.version_name)}</span>`;
+                }
+                html += `</div>`;
+                
+                html += `<div class="package-detail-content">`;
+                
+                // Basic Info
+                html += `<div class="detail-section">`;
+                html += `<strong>Basic Information</strong>`;
+                html += `<table class="detail-table">`;
+                if (pkg.version_code) {
+                    html += `<tr><td>Version Code:</td><td>${pkg.version_code}</td></tr>`;
+                }
+                if (pkg.app_id) {
+                    html += `<tr><td>App ID:</td><td>${pkg.app_id}</td></tr>`;
+                }
+                if (pkg.target_sdk) {
+                    html += `<tr><td>Target SDK:</td><td>${pkg.target_sdk}</td></tr>`;
+                }
+                if (pkg.min_sdk) {
+                    html += `<tr><td>Min SDK:</td><td>${pkg.min_sdk}</td></tr>`;
+                }
+                if (pkg.category) {
+                    html += `<tr><td>Category:</td><td>${escapeHtml(pkg.category)}</td></tr>`;
+                }
+                html += `</table>`;
+                html += `</div>`;
+                
+                // Paths
+                html += `<div class="detail-section">`;
+                html += `<strong>Paths</strong>`;
+                html += `<table class="detail-table">`;
+                if (pkg.code_path) {
+                    html += `<tr><td>Code Path:</td><td><code>${escapeHtml(pkg.code_path)}</code></td></tr>`;
+                }
+                if (pkg.resource_path) {
+                    html += `<tr><td>Resource Path:</td><td><code>${escapeHtml(pkg.resource_path)}</code></td></tr>`;
+                }
+                if (pkg.primary_cpu_abi) {
+                    html += `<tr><td>Primary CPU ABI:</td><td>${escapeHtml(pkg.primary_cpu_abi)}</td></tr>`;
+                }
+                html += `</table>`;
+                html += `</div>`;
+                
+                // Flags
+                if (pkg.flags || pkg.pkg_flags) {
+                    html += `<div class="detail-section">`;
+                    html += `<strong>Flags</strong>`;
+                    html += `<table class="detail-table">`;
+                    if (pkg.flags) {
+                        html += `<tr><td>Flags:</td><td><code>${escapeHtml(pkg.flags)}</code></td></tr>`;
+                    }
+                    if (pkg.pkg_flags) {
+                        html += `<tr><td>Package Flags:</td><td><code>${escapeHtml(pkg.pkg_flags)}</code></td></tr>`;
+                    }
+                    html += `</table>`;
+                    html += `</div>`;
+                }
+                
+                // Installer & Timestamps
+                html += `<div class="detail-section">`;
+                html += `<strong>Installation Info</strong>`;
+                html += `<table class="detail-table">`;
+                if (pkg.installer_package_name) {
+                    html += `<tr><td>Installer:</td><td>${escapeHtml(pkg.installer_package_name)}</td></tr>`;
+                }
+                if (pkg.last_update_time) {
+                    html += `<tr><td>Last Update:</td><td>${escapeHtml(pkg.last_update_time)}</td></tr>`;
+                }
+                if (pkg.time_stamp) {
+                    html += `<tr><td>Time Stamp:</td><td>${escapeHtml(pkg.time_stamp)}</td></tr>`;
+                }
+                html += `<tr><td>Users:</td><td>${pkg.user_count}</td></tr>`;
+                html += `</table>`;
+                html += `</div>`;
+                
+                // Users Information
+                if (pkg.users && Array.isArray(pkg.users) && pkg.users.length > 0) {
+                    html += `<div class="detail-section">`;
+                    html += `<strong>Users (${pkg.users.length})</strong>`;
+                    html += `<div class="users-container">`;
+                    
+                    pkg.users.forEach((user, userIdx) => {
+                        html += `<div class="user-entry">`;
+                        html += `<div class="user-header">`;
+                        html += `<span class="user-id">User ${user.user_id !== null && user.user_id !== undefined ? user.user_id : 'Unknown'}</span>`;
+                        if (user.installed !== null && user.installed !== undefined) {
+                            html += `<span class="user-status ${user.installed ? 'installed' : 'not-installed'}">${user.installed ? '✓ Installed' : '✗ Not Installed'}</span>`;
+                        }
+                        html += `</div>`;
+                        html += `<table class="detail-table">`;
+                        if (user.first_install_time) {
+                            html += `<tr><td>First Install Time:</td><td>${escapeHtml(user.first_install_time)}</td></tr>`;
+                        }
+                        if (user.last_disabled_caller) {
+                            html += `<tr><td>Last Disabled By:</td><td>${escapeHtml(user.last_disabled_caller)}</td></tr>`;
+                        }
+                        if (user.data_dir) {
+                            html += `<tr><td>Data Directory:</td><td><code>${escapeHtml(user.data_dir)}</code></td></tr>`;
+                        }
+                        if (user.enabled !== null && user.enabled !== undefined) {
+                            html += `<tr><td>Enabled:</td><td>${user.enabled === 0 ? 'Yes' : 'No'}</td></tr>`;
+                        }
+                        html += `</table>`;
+                        html += `</div>`;
+                    });
+                    
+                    html += `</div>`;
+                    html += `</div>`;
+                }
+                
+                // Install Logs
+                if (pkg.install_logs && Array.isArray(pkg.install_logs) && pkg.install_logs.length > 0) {
+                    html += `<div class="detail-section">`;
+                    html += `<strong>Installation History (${pkg.install_logs.length} entries)</strong>`;
+                    html += `<div class="install-logs-container">`;
+                    
+                    // Group install logs by START_INSTALL events
+                    const installEvents = [];
+                    pkg.install_logs.forEach(log => {
+                        if (log.event_type === 'START_INSTALL') {
+                            installEvents.push({
+                                start: log,
+                                related: []
+                            });
+                        } else if (installEvents.length > 0) {
+                            installEvents[installEvents.length - 1].related.push(log);
+                        }
+                    });
+                    
+                    installEvents.forEach((event, idx) => {
+                        html += `<div class="install-log-entry">`;
+                        html += `<div class="install-log-header">`;
+                        html += `<span class="install-log-type">Installation #${idx + 1}</span>`;
+                        if (event.start.timestamp) {
+                            html += `<span class="install-log-time">${escapeHtml(event.start.timestamp)}</span>`;
+                        }
+                        html += `</div>`;
+                        html += `<div class="install-log-details">`;
+                        html += `<table class="detail-table">`;
+                        if (event.start.versionCode) {
+                            html += `<tr><td>Version Code:</td><td>${event.start.versionCode}</td></tr>`;
+                        }
+                        if (event.start.request_from) {
+                            html += `<tr><td>Requested By:</td><td>${escapeHtml(event.start.request_from)}</td></tr>`;
+                        }
+                        if (event.start.stagedDir) {
+                            html += `<tr><td>Staged Dir:</td><td><code>${escapeHtml(event.start.stagedDir)}</code></td></tr>`;
+                        }
+                        html += `</table>`;
+                        
+                        // Show related events
+                        if (event.related.length > 0) {
+                            html += `<div class="related-events">`;
+                            event.related.forEach(rel => {
+                                html += `<div class="related-event">`;
+                                html += `<span class="event-type">${escapeHtml(rel.event_type || 'Unknown')}</span>`;
+                                if (rel.timestamp) {
+                                    html += `<span class="event-time">${escapeHtml(rel.timestamp)}</span>`;
+                                }
+                                html += `</div>`;
+                            });
+                            html += `</div>`;
+                        }
+                        html += `</div>`;
+                        html += `</div>`;
+                    });
+                    
+                    html += `</div>`;
+                    html += `</div>`;
+                }
+                
+                html += `</div>`;
+                html += `</div>`;
+            });
+            
+            html += '</div>';
+            packageDetailsListEl.innerHTML = html;
+
+            // Add search functionality
+            const searchInput = document.getElementById('package-details-search-input');
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.toLowerCase();
+                const items = document.querySelectorAll('.package-detail-item');
+                let visibleCount = 0;
+
+                items.forEach(item => {
+                    const packageName = item.getAttribute('data-package-name');
+                    
+                    if (packageName.includes(query)) {
+                        item.style.display = 'block';
+                        visibleCount++;
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            });
+        }
+
+        function displayPowerHistory(data) {
+            const powerHistoryCard = document.getElementById('power-history-card');
+            const powerHistoryListEl = document.getElementById('power-history-list');
+            const countBadge = document.getElementById('power-history-count-badge');
+
+            if (!data.power_history || !Array.isArray(data.power_history) || data.power_history.length === 0) {
+                powerHistoryCard.style.display = 'none';
+                return;
+            }
+
+            powerHistoryCard.style.display = 'block';
+            countBadge.textContent = data.power_history.length;
+
+            let html = '<div class="power-history-container">';
+            
+            data.power_history.forEach((entry, index) => {
+                html += `<div class="power-history-entry">`;
+                html += `<div class="power-history-header">`;
+                html += `<h4>${escapeHtml(entry.timestamp)}</h4>`;
+                if (entry.reason) {
+                    html += `<span class="power-reason-badge">${escapeHtml(entry.reason)}</span>`;
+                }
+                html += `</div>`;
+                
+                html += `<div class="power-history-content">`;
+                
+                // History Events
+                if (entry.history_events && entry.history_events.length > 0) {
+                    html += `<div class="detail-section">`;
+                    html += `<strong>History Events (${entry.history_events.length})</strong>`;
+                    html += `<div class="power-events-container">`;
+                    
+                    entry.history_events.forEach((event, eventIdx) => {
+                        html += `<div class="power-event-entry">`;
+                        html += `<div class="power-event-header">`;
+                        if (event.event_type) {
+                            html += `<span class="power-event-type ${event.event_type.toLowerCase()}">${escapeHtml(event.event_type)}</span>`;
+                        }
+                        if (event.timestamp) {
+                            html += `<span class="power-event-time">${escapeHtml(event.timestamp)}</span>`;
+                        }
+                        if (event.flags) {
+                            html += `<span class="power-event-flags">${escapeHtml(event.flags)}</span>`;
+                        }
+                        html += `</div>`;
+                        if (event.details) {
+                            html += `<div class="power-event-details">${escapeHtml(event.details)}</div>`;
+                        }
+                        html += `</div>`;
+                    });
+                    
+                    html += `</div>`;
+                    html += `</div>`;
+                }
+                
+                // Stack Trace
+                if (entry.stack_trace && entry.stack_trace.length > 0) {
+                    html += `<div class="detail-section">`;
+                    html += `<strong>Stack Trace (${entry.stack_trace.length} lines)</strong>`;
+                    html += `<div class="stack-trace-container">`;
+                    html += `<pre class="stack-trace">`;
+                    entry.stack_trace.forEach(line => {
+                        html += escapeHtml(line) + '\n';
+                    });
+                    html += `</pre>`;
+                    html += `</div>`;
+                    html += `</div>`;
+                }
+                
+                html += `</div>`;
+                html += `</div>`;
+            });
+            
+            html += '</div>';
+            powerHistoryListEl.innerHTML = html;
+        }
+
+        function parseInstallLogs(logs) {
+            const packages = [];
+            const installMap = new Map();
+            
+            logs.forEach((log) => {
+                if (log.event_type === 'START_INSTALL') {
+                    const key = log.observer;
+                    installMap.set(key, {
+                        packageName: log.pkg,
+                        installer: log.request_from,
+                        timestamp: log.timestamp,
+                        versionCode: log.versionCode,
+                        observer: log.observer
+                    });
+                } else if (log.event_type === 'INSTALL_RESULT') {
+                    const match = log.message.match(/\{(\d+)\}/);
+                    if (match) {
+                        const key = match[1];
+                        const install = installMap.get(key);
+                        
+                        if (install) {
+                            let duration = null;
+                            if (install.timestamp && log.timestamp) {
+                                const start = new Date(install.timestamp);
+                                const end = new Date(log.timestamp);
+                                duration = ((end - start) / 1000).toFixed(1);
+                            }
+
+                            const isSuccess = log.message.includes('result of install: 1');
+                            
+                            packages.push({
+                                packageName: install.packageName,
+                                installer: install.installer,
+                                timestamp: install.timestamp,
+                                versionCode: install.versionCode,
+                                success: isSuccess,
+                                duration: duration
+                            });
+                            
+                            installMap.delete(key);
+                        }
+                    }
+                }
+            });
+
+            packages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            return packages;
+        }
+
+        function formatInstaller(installer) {
+            const installerMap = {
+                'com.android.vending': 'Play Store',
+                'com.sec.android.app.samsungapps': 'Galaxy Store',
+                'com.android.managedprovisioning': 'System Provisioning',
+                'android': 'Android System',
+                'com.google.android.packageinstaller': 'Package Installer'
+            };
+            return installerMap[installer] || installer;
+        }
+
+        function formatDate(timestamp) {
+            if (!timestamp) return '-';
+            
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+
+            if (diffDays === 0) return 'Today ' + date.toLocaleTimeString();
+            if (diffDays === 1) return 'Yesterday ' + date.toLocaleTimeString();
+            if (diffDays < 7) return `${diffDays} days ago`;
+            
+            const options = { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            };
+            return date.toLocaleString(undefined, options);
+        }
+
+        // Connect to device
+        window.connectDevice = async function() {
+            try {
+                if (typeof Adb === 'undefined') {
+                    showStatus('⚠️ WebAssembly not loaded yet. Please wait a moment and try again.', 'error');
+                    return;
+                }
+                
+                const btn = document.getElementById('btn-connect-device');
+                btn.disabled = false;
+                
+                showStatus('Connecting to device...', 'info');
+                showProgress();
+                hideResults();
+
+                adb = new Adb();
+                window.adb = adb;
+                
+                await adb.connect();
+                
+                btn.textContent = 'Connected ✓';
+                btn.disabled = true;
+                
+                showStatus('Connected! Listing bugreports...', 'info');
+                
+                const listingStatus = document.getElementById('listing-status');
+                listingStatus.classList.remove('hidden');
+                
+                let timeoutWarning = setTimeout(() => {
+                    showStatus('Still scanning... This is normal for devices with many bugreports', 'info');
+                }, 15000);
+
+                const startTime = Date.now();
+                const bugreports = await adb.list_bugreports();
+                const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+                
+                clearTimeout(timeoutWarning);
+                listingStatus.classList.add('hidden');
+                
+                const select = document.getElementById('bugreport-select');
+                select.innerHTML = '<option value="">Select a bugreport...</option>';
+                
+                if (bugreports && bugreports.length > 0) {
+                    bugreports.forEach(path => {
+                        const option = document.createElement('option');
+                        option.value = path;
+                        option.textContent = path.split('/').pop();
+                        select.appendChild(option);
+                    });
+                    
+                    showStatus(`✓ Found ${bugreports.length} bugreport(s) on device in ${duration}s - select one to analyze`, 'success');
+                    document.getElementById('btn-refresh-list').classList.remove('hidden');
+                } else {
+                    showStatus('⚠️ No bugreports found on device. Try generating a new one or use the "Generate New" tab.', 'error');
+                }
+
+                select.classList.remove('hidden');
+                select.style.display = 'block';
+                document.getElementById('btn-disconnect-device').classList.remove('hidden');
+                
+                hideProgress();
+            } catch (error) {
+                console.error('[CONNECT] Connection error:', error);
+                
+                let errorMessage = 'Failed to connect: ';
+                if (error.toString().includes('No device selected')) {
+                    errorMessage = '⚠️ No device selected. Please accept USB debugging permission on your device.';
+                } else if (error.toString().includes('device not found')) {
+                    errorMessage = '⚠️ Device not found. Please check USB connection and enable USB debugging.';
+                } else if (error.toString().includes('permission')) {
+                    errorMessage = '⚠️ Permission denied. Please accept USB debugging permission on your device.';
+                } else {
+                    errorMessage += error.toString();
+                }
+                
+                showStatus(errorMessage, 'error');
+                hideProgress();
+                document.getElementById('listing-status').classList.add('hidden');
+                
+                const btn = document.getElementById('btn-connect-device');
+                btn.textContent = 'Retry Connection';
+                btn.disabled = false;
+            }
+        }
+
+        // Disconnect from device
+        window.disconnectDevice = async function() {
+            try {
+                showStatus('Disconnecting from device...', 'info');
+                
+                if (adb) {
+                    try {
+                        await adb.disconnect();
+                    } catch (e) {
+                        console.warn('Disconnect error (ignored):', e);
+                    }
+                    adb = null;
+                    window.adb = null;
+                }
+                
+                const btnConnectDevice = document.getElementById('btn-connect-device');
+                if (btnConnectDevice) {
+                    btnConnectDevice.textContent = 'Connect to Device';
+                    btnConnectDevice.disabled = false;
+                }
+                document.getElementById('btn-disconnect-device').classList.add('hidden');
+                
+                const btnGenerate = document.getElementById('btn-generate');
+                if (btnGenerate) {
+                    btnGenerate.textContent = 'Connect & Generate Bugreport';
+                    btnGenerate.disabled = false;
+                }
+                document.getElementById('btn-disconnect-generate').classList.add('hidden');
+                
+                const select = document.getElementById('bugreport-select');
+                select.classList.add('hidden');
+                select.innerHTML = '<option value="">Select a bugreport...</option>';
+                
+                document.getElementById('btn-refresh-list').classList.add('hidden');
+                document.getElementById('btn-analyze-device').classList.add('hidden');
+                
+                selectedBugreportPath = null;
+                hideResults();
+                
+                showStatus('✓ Disconnected from device', 'success');
+                
+            } catch (error) {
+                console.error('Disconnect error:', error);
+                showStatus('Error during disconnect: ' + error, 'error');
+            }
+        }
+
+        // Refresh bugreport list
+        window.refreshBugreportList = async function() {
+            if (!adb) {
+                showStatus('Please connect to device first', 'error');
+                return;
+            }
+
+            try {
+                showStatus('Refreshing bugreport list...', 'info');
+                showProgress();
+                hideResults();
+                
+                const listingStatus = document.getElementById('listing-status');
+                listingStatus.classList.remove('hidden');
+                
+                let timeoutWarning = setTimeout(() => {
+                    showStatus('Still scanning... This is normal for devices with many bugreports', 'info');
+                }, 15000);
+
+                const startTime = Date.now();
+                const bugreports = await adb.list_bugreports();
+                const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+                
+                clearTimeout(timeoutWarning);
+                listingStatus.classList.add('hidden');
+                
+                const select = document.getElementById('bugreport-select');
+                select.innerHTML = '<option value="">Select a bugreport...</option>';
+                
+                if (bugreports && bugreports.length > 0) {
+                    bugreports.forEach(path => {
+                        const option = document.createElement('option');
+                        option.value = path;
+                        option.textContent = path.split('/').pop();
+                        select.appendChild(option);
+                    });
+                    
+                    showStatus(`✓ Refreshed - found ${bugreports.length} bugreport(s) in ${duration}s`, 'success');
+                } else {
+                    showStatus('⚠️ No bugreports found on device', 'error');
+                }
+                
+                document.getElementById('btn-analyze-device').classList.add('hidden');
+                selectedBugreportPath = null;
+                
+                hideProgress();
+            } catch (error) {
+                console.error('Refresh error:', error);
+                showStatus('Failed to refresh list: ' + error, 'error');
+                document.getElementById('listing-status').classList.add('hidden');
+                hideProgress();
+            }
+        }
+
+        window.selectBugreport = function() {
+            const select = document.getElementById('bugreport-select');
+            selectedBugreportPath = select.value;
+            
+            if (selectedBugreportPath) {
+                document.getElementById('btn-analyze-device').classList.remove('hidden');
+            } else {
+                document.getElementById('btn-analyze-device').classList.add('hidden');
+            }
+        }
+
+        // Generate new bugreport
+        window.generateBugreport = async function() {
+            try {
+                if (typeof Adb === 'undefined') {
+                    showStatus('⚠️ WebAssembly not loaded yet. Please wait a moment and try again.', 'error');
+                    return;
+                }
+                
+                const btnGenerate = document.getElementById('btn-generate');
+                btnGenerate.disabled = false;
+                
+                showStatus('Connecting to device...', 'info');
+                showProgress();
+                hideResults();
+
+                adb = new Adb();
+                window.adb = adb;
+                
+                await adb.connect();
+                
+                btnGenerate.textContent = 'Connected ✓';
+                btnGenerate.disabled = true;
+                
+                document.getElementById('btn-disconnect-generate').classList.remove('hidden');
+                
+                showStatus('Generating bugreport (this takes 5-10 minutes)...', 'info');
+                
+                const bugreportData = await adb.bugreport();
+                const sizeMB = (bugreportData.length / 1024 / 1024).toFixed(2);
+                
+                showStatus('Bugreport generated! Calculating hash...', 'info');
+                
+                const hashHex = await calculateHash(bugreportData);
+                
+                showStatus('Hash calculated! Analyzing...', 'info');
+
+                const result = await adb.analyze_bugreport(bugreportData);
+                
+                result.file_info = {
+                    path: 'Generated on device',
+                    size_bytes: bugreportData.length,
+                    size_mb: sizeMB,
+                    sha256: hashHex
+                };
+                
+                result.analysis_timestamp = new Date().toISOString();
+                
+                showStatus('Analysis complete!', 'success');
+                hideProgress();
+                displayResults(result);
+            } catch (error) {
+                console.error('[GENERATE] Generation error:', error);
+                
+                let errorMessage = 'Failed to generate bugreport: ';
+                if (error.toString().includes('No device selected')) {
+                    errorMessage = '⚠️ No device selected. Please accept USB debugging permission on your device.';
+                } else if (error.toString().includes('device not found')) {
+                    errorMessage = '⚠️ Device not found. Please check USB connection and enable USB debugging.';
+                } else if (error.toString().includes('permission')) {
+                    errorMessage = '⚠️ Permission denied. Please accept USB debugging permission on your device.';
+                } else if (error.toString().includes('timeout')) {
+                    errorMessage = '⚠️ Operation timed out. Bugreport generation can take 5-10 minutes. Try again.';
+                } else {
+                    errorMessage += error.toString();
+                }
+                
+                showStatus(errorMessage, 'error');
+                hideProgress();
+                
+                const btnGenerate = document.getElementById('btn-generate');
+                btnGenerate.textContent = 'Retry Generation';
+                btnGenerate.disabled = false;
+                
+                document.getElementById('btn-disconnect-generate').classList.add('hidden');
+            }
+        }
+
+        // Analyze from device
+        window.analyzeFromDevice = async function() {
+            if (!selectedBugreportPath) {
+                showStatus('Please select a bugreport first', 'error');
+                return;
+            }
+
+            try {
+                showStatus('📥 Downloading bugreport from device...', 'info');
+                showProgress();
+                hideResults();
+
+                const startDownload = Date.now();
+                const bugreportData = await adb.download_bugreport(selectedBugreportPath);
+                
+                const downloadDuration = ((Date.now() - startDownload) / 1000).toFixed(1);
+                const sizeMB = (bugreportData.length / 1024 / 1024).toFixed(2);
+                
+                showStatus(`✓ Downloaded ${sizeMB} MB! Calculating hash...`, 'info');
+                
+                const startHash = Date.now();
+                const hashHex = await calculateHash(bugreportData);
+                const hashDuration = ((Date.now() - startHash) / 1000).toFixed(1);
+                
+                showStatus(`✓ Hash calculated! Now analyzing...`, 'info');
+                
+                const startAnalysis = Date.now();
+                const result = await adb.analyze_bugreport(bugreportData);
+                
+                const analysisDuration = ((Date.now() - startAnalysis) / 1000).toFixed(1);
+                const totalDuration = ((Date.now() - startDownload) / 1000).toFixed(1);
+                
+                result.file_info = {
+                    path: selectedBugreportPath,
+                    size_bytes: bugreportData.length,
+                    size_mb: sizeMB,
+                    sha256: hashHex
+                };
+                
+                result.analysis_timestamp = new Date().toISOString();
+                
+                showStatus(`✓ Analysis complete! (${totalDuration}s total)`, 'success');
+                hideProgress();
+                displayResults(result);
+            } catch (error) {
+                console.error('[ANALYZE-DEVICE] Analysis error:', error);
+                
+                let errorMessage = 'Failed to analyze: ';
+                if (error.toString().includes('Not connected')) {
+                    errorMessage = '⚠️ Not connected to device. Please connect first.';
+                } else if (error.toString().includes('file not found') || error.toString().includes('No such file')) {
+                    errorMessage = '⚠️ Bugreport file not found on device. It may have been deleted.';
+                } else if (error.toString().includes('permission')) {
+                    errorMessage = '⚠️ Permission denied. Check USB debugging is enabled.';
+                } else {
+                    errorMessage += error.toString();
+                }
+                
+                showStatus(errorMessage, 'error');
+                hideProgress();
+            }
+        }
+
+        // File upload handling
+        window.handleFileSelect = function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                uploadedFile = file;
+                const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+                document.getElementById('btn-analyze-upload').classList.remove('hidden');
+                
+                if (file.size > 50 * 1024 * 1024) {
+                    showStatus(`⚠️ Large file loaded: ${file.name} (${sizeMB} MB) - Analysis may take 30-60 seconds`, 'info');
+                } else {
+                    showStatus(`✓ File loaded: ${file.name} (${sizeMB} MB)`, 'success');
+                }
+            }
+        }
+
+        // Drag and drop
+        const uploadZone = document.getElementById('upload-zone');
+        
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                uploadedFile = file;
+                const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+                document.getElementById('btn-analyze-upload').classList.remove('hidden');
+                
+                if (file.size > 50 * 1024 * 1024) {
+                    showStatus(`⚠️ Large file loaded: ${file.name} (${sizeMB} MB) - Analysis may take 30-60 seconds`, 'info');
+                } else {
+                    showStatus(`✓ File loaded: ${file.name} (${sizeMB} MB)`, 'success');
+                }
+            }
+        });
+
+        // Analyze uploaded file
+        window.analyzeUploadedFile = async function() {
+            if (!uploadedFile) {
+                showStatus('Please upload a file first', 'error');
+                return;
+            }
+
+            try {
+                const fileSizeMB = (uploadedFile.size / 1024 / 1024).toFixed(2);
+                
+                if (uploadedFile.size > 100 * 1024 * 1024) {
+                    const proceed = confirm(
+                        `⚠️ Warning: This file is ${fileSizeMB} MB.\n\n` +
+                        `Analyzing very large files may:\n` +
+                        `• Take 60+ seconds\n` +
+                        `• Use significant memory\n` +
+                        `• Potentially freeze the browser\n\n` +
+                        `For files over 100 MB, consider using "From Device" method instead.\n\n` +
+                        `Continue anyway?`
+                    );
+                    if (!proceed) {
+                        showStatus('Analysis cancelled by user', 'info');
+                        return;
+                    }
+                }
+                
+                showStatus(`Reading file (${fileSizeMB} MB)...`, 'info');
+                showProgress();
+                hideResults();
+
+                const arrayBuffer = await uploadedFile.arrayBuffer();
+                const uint8Array = new Uint8Array(arrayBuffer);
+
+                showStatus(`Calculating hash...`, 'info');
+                
+                const hashHex = await calculateHash(uint8Array);
+
+                showStatus(`Analyzing bugreport (${fileSizeMB} MB)...`, 'info');
+
+                if (!adb) {
+                    adb = new Adb();
+                    window.adb = adb;
+                }
+
+                const result = await adb.analyze_bugreport(uint8Array);
+                
+                result.file_info = {
+                    path: uploadedFile.name,
+                    size_bytes: uploadedFile.size,
+                    size_mb: fileSizeMB,
+                    sha256: hashHex
+                };
+                
+                result.analysis_timestamp = new Date().toISOString();
+                
+                showStatus('✓ Analysis complete!', 'success');
+                hideProgress();
+                displayResults(result);
+            } catch (error) {
+                console.error('Analysis error:', error);
+                
+                if (error.toString().includes('array length') || error.toString().includes('memory')) {
+                    showStatus(`Failed: File too large (${(uploadedFile.size / 1024 / 1024).toFixed(2)} MB). Try analyzing from device instead.`, 'error');
+                } else {
+                    showStatus('Failed to analyze: ' + error, 'error');
+                }
+                hideProgress();
+            }
+        }
     </script>
 </body>
 </html>
