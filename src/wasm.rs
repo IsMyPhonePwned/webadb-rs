@@ -459,7 +459,7 @@ impl Adb {
         use bugreport_extractor_library::run_parsers_concurrently;
         use bugreport_extractor_library::parsers::{
             Parser as DataParser, ParserType, HeaderParser, BatteryParser, 
-            PackageParser, ProcessParser, PowerParser
+            PackageParser, ProcessParser, PowerParser, NetworkParser
         };
         use bugreport_extractor_library::zip_utils;
         use std::sync::Arc;
@@ -540,6 +540,15 @@ impl Adb {
             log::warn!("  ⚠️ [ANALYZE] Failed to create PowerParser");
         }
         
+        // Add Network parser
+        log::info!("  🌐 [ANALYZE] Creating NetworkParser...");
+        if let Ok(network_parser) = NetworkParser::new() {
+            parsers_to_run.push((ParserType::Network, Box::new(network_parser)));
+            log::info!("  ✅ [ANALYZE] NetworkParser created");
+        } else {
+            log::warn!("  ⚠️ [ANALYZE] Failed to create NetworkParser");
+        }
+        
         log::info!("✅ [ANALYZE] Created {} parsers", parsers_to_run.len());
         
         // Run parsers concurrently
@@ -562,6 +571,9 @@ impl Adb {
             battery_apps: Vec<BatteryAppInfo>,
             package_details: Vec<PackageDetails>,
             power_history: Vec<PowerHistory>,
+            network_info: Vec<NetworkInfo>,
+            network_stats: Vec<NetworkStats>,
+            sockets: Vec<SocketInfo>,
         }
         
         #[derive(Serialize, Clone)]
@@ -669,6 +681,47 @@ impl Adb {
             stack_trace: Vec<String>,
         }
         
+        #[derive(Serialize, Clone)]
+        struct NetworkInfo {
+            interface_name: Option<String>,
+            ip_address: Option<String>,
+            mac_address: Option<String>,
+            state: Option<String>,
+            rx_bytes: Option<u64>,
+            tx_bytes: Option<u64>,
+            rx_packets: Option<u64>,
+            tx_packets: Option<u64>,
+            mtu: Option<u32>,
+        }
+        
+        #[derive(Serialize, Clone)]
+        struct NetworkStats {
+            network_type: Option<String>,
+            wifi_network_name: Option<String>,
+            rx_bytes: Option<u64>,
+            tx_bytes: Option<u64>,
+            rx_packets: Option<u64>,
+            tx_packets: Option<u64>,
+            default_network: Option<bool>,
+            metered: Option<bool>,
+            rat_type: Option<String>,
+            subscriber_id: Option<String>,
+        }
+        
+        #[derive(Serialize, Clone)]
+        struct SocketInfo {
+            protocol: Option<String>,
+            local_address: Option<String>,
+            remote_address: Option<String>,
+            state: Option<String>,
+            uid: Option<u32>,
+            inode: Option<u64>,
+            recv_q: Option<u64>,
+            send_q: Option<u64>,
+            socket_key: Option<String>,
+            additional_info: Option<String>,
+        }
+        
         // Extract data from results
         log::info!("📤 [ANALYZE] Extracting data from parser results...");
         let mut device_info = None;
@@ -680,6 +733,9 @@ impl Adb {
         let mut battery_apps: Vec<BatteryAppInfo> = Vec::new();
         let mut package_details: Vec<PackageDetails> = Vec::new();
         let mut power_history: Vec<PowerHistory> = Vec::new();
+        let mut network_info: Vec<NetworkInfo> = Vec::new();
+        let mut network_stats: Vec<NetworkStats> = Vec::new();
+        let mut sockets: Vec<SocketInfo> = Vec::new();
         
         for (parser_type, result, duration) in results {
             log::info!("  🔍 [ANALYZE] Processing {:?} result (took {:?})", parser_type, duration);
@@ -1343,6 +1399,204 @@ impl Adb {
                                 log::warn!("    ⚠️ [ANALYZE] Power result is not an object");
                             }
                         },
+                        ParserType::Network => {
+                            log::info!("    🌐 [ANALYZE] Extracting network info...");
+                            // NetworkParser returns an object with "interfaces", "network_stats", and "sockets" keys
+                            if let Some(obj) = json_output.as_object() {
+                                log::info!("    📊 [ANALYZE] Network result is an object with keys: {:?}", obj.keys().collect::<Vec<_>>());
+                                
+                                // Parse interfaces array
+                                if let Some(interfaces_arr) = obj.get("interfaces").and_then(|v| v.as_array()) {
+                                    log::info!("    📊 [ANALYZE] Found {} network interfaces", interfaces_arr.len());
+                                    
+                                    for net_json in interfaces_arr {
+                                        if let Some(net_obj) = net_json.as_object() {
+                                            let interface_name = net_obj.get("name")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string());
+                                            
+                                            // Extract IP addresses from ip_addresses array
+                                            let ip_address = net_obj.get("ip_addresses")
+                                                .and_then(|v| v.as_array())
+                                                .and_then(|arr| {
+                                                    if arr.is_empty() {
+                                                        None
+                                                    } else {
+                                                        // Get first IP address, or join all if multiple
+                                                        arr.first()
+                                                            .and_then(|v| v.as_str())
+                                                            .map(|s| s.to_string())
+                                                    }
+                                                });
+                                            
+                                            // Extract state from flags array
+                                            let state = net_obj.get("flags")
+                                                .and_then(|v| v.as_array())
+                                                .map(|flags_arr| {
+                                                    flags_arr.iter()
+                                                        .filter_map(|f| f.as_str())
+                                                        .collect::<Vec<_>>()
+                                                        .join(", ")
+                                                });
+                                            
+                                            let rx_bytes = net_obj.get("rx_bytes")
+                                                .and_then(|v| v.as_u64());
+                                            
+                                            let tx_bytes = net_obj.get("tx_bytes")
+                                                .and_then(|v| v.as_u64());
+                                            
+                                            // Note: rx_packets and tx_packets are not in the interface data
+                                            // They might be in network_stats instead
+                                            
+                                            let mtu = net_obj.get("mtu")
+                                                .and_then(|v| v.as_u64())
+                                                .map(|v| v as u32);
+                                            
+                                            network_info.push(NetworkInfo {
+                                                interface_name,
+                                                ip_address,
+                                                mac_address: None, // Not in the interface data
+                                                state,
+                                                rx_bytes,
+                                                tx_bytes,
+                                                rx_packets: None, // Not in interface data
+                                                tx_packets: None, // Not in interface data
+                                                mtu,
+                                            });
+                                        }
+                                    }
+                                    
+                                    log::info!("    ✅ [ANALYZE] Parsed {} network interfaces", network_info.len());
+                                } else {
+                                    log::warn!("    ⚠️ [ANALYZE] No 'interfaces' array found in network data");
+                                }
+                                
+                                // Parse network_stats array
+                                if let Some(stats_arr) = obj.get("network_stats").and_then(|v| v.as_array()) {
+                                    log::info!("    📊 [ANALYZE] Found {} network stats entries", stats_arr.len());
+                                    
+                                    for stat_json in stats_arr {
+                                        if let Some(stat_obj) = stat_json.as_object() {
+                                            let network_type = stat_obj.get("network_type")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string());
+                                            
+                                            let wifi_network_name = stat_obj.get("wifi_network_name")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string());
+                                            
+                                            let rx_bytes = stat_obj.get("rx_bytes")
+                                                .and_then(|v| v.as_u64());
+                                            
+                                            let tx_bytes = stat_obj.get("tx_bytes")
+                                                .and_then(|v| v.as_u64());
+                                            
+                                            let rx_packets = stat_obj.get("rx_packets")
+                                                .and_then(|v| v.as_u64());
+                                            
+                                            let tx_packets = stat_obj.get("tx_packets")
+                                                .and_then(|v| v.as_u64());
+                                            
+                                            let default_network = stat_obj.get("default_network")
+                                                .and_then(|v| v.as_bool());
+                                            
+                                            let metered = stat_obj.get("metered")
+                                                .and_then(|v| v.as_bool());
+                                            
+                                            let rat_type = stat_obj.get("rat_type")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string());
+                                            
+                                            let subscriber_id = stat_obj.get("subscriber_id")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string());
+                                            
+                                            network_stats.push(NetworkStats {
+                                                network_type,
+                                                wifi_network_name,
+                                                rx_bytes,
+                                                tx_bytes,
+                                                rx_packets,
+                                                tx_packets,
+                                                default_network,
+                                                metered,
+                                                rat_type,
+                                                subscriber_id,
+                                            });
+                                        }
+                                    }
+                                    
+                                    log::info!("    ✅ [ANALYZE] Parsed {} network stats entries", network_stats.len());
+                                } else {
+                                    log::warn!("    ⚠️ [ANALYZE] No 'network_stats' array found in network data");
+                                }
+                                
+                                // Parse sockets array
+                                if let Some(sockets_arr) = obj.get("sockets").and_then(|v| v.as_array()) {
+                                    log::info!("    📊 [ANALYZE] Found {} socket entries", sockets_arr.len());
+                                    
+                                    for socket_json in sockets_arr {
+                                        if let Some(socket_obj) = socket_json.as_object() {
+                                            let protocol = socket_obj.get("protocol")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string());
+                                            
+                                            let local_address = socket_obj.get("local_address")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string());
+                                            
+                                            let remote_address = socket_obj.get("remote_address")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string());
+                                            
+                                            let state = socket_obj.get("state")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string());
+                                            
+                                            let uid = socket_obj.get("uid")
+                                                .and_then(|v| v.as_u64())
+                                                .map(|v| v as u32);
+                                            
+                                            let inode = socket_obj.get("inode")
+                                                .and_then(|v| v.as_u64());
+                                            
+                                            let recv_q = socket_obj.get("recv_q")
+                                                .and_then(|v| v.as_u64());
+                                            
+                                            let send_q = socket_obj.get("send_q")
+                                                .and_then(|v| v.as_u64());
+                                            
+                                            let socket_key = socket_obj.get("socket_key")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string());
+                                            
+                                            let additional_info = socket_obj.get("additional_info")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string());
+                                            
+                                            sockets.push(SocketInfo {
+                                                protocol,
+                                                local_address,
+                                                remote_address,
+                                                state,
+                                                uid,
+                                                inode,
+                                                recv_q,
+                                                send_q,
+                                                socket_key,
+                                                additional_info,
+                                            });
+                                        }
+                                    }
+                                    
+                                    log::info!("    ✅ [ANALYZE] Parsed {} socket entries", sockets.len());
+                                } else {
+                                    log::warn!("    ⚠️ [ANALYZE] No 'sockets' array found in network data");
+                                }
+                            } else {
+                                log::warn!("    ⚠️ [ANALYZE] Network result is not an object");
+                            }
+                        },
                         _ => {
                             log::info!("    ℹ️ [ANALYZE] Skipping {:?} (not used in summary)", parser_type);
                         }
@@ -1497,6 +1751,9 @@ impl Adb {
             battery_apps: battery_apps.clone(),
             package_details: package_details.clone(),
             power_history: power_history.clone(),
+            network_info: network_info.clone(),
+            network_stats: network_stats.clone(),
+            sockets: sockets.clone(),
         };
         
         log::info!("✅ [ANALYZE] Analysis complete!");
@@ -1505,6 +1762,9 @@ impl Adb {
         log::info!("⚙️ [ANALYZE] Processes: {}", process_count);
         log::info!("📦 [ANALYZE] Unique packages: {} ({} total installations)", unique_package_count, packages.len());
         log::info!("⚡ [ANALYZE] Power history events: {}", power_history.len());
+        log::info!("🌐 [ANALYZE] Network interfaces: {}", network_info.len());
+        log::info!("📊 [ANALYZE] Network stats: {}", network_stats.len());
+        log::info!("🔌 [ANALYZE] Sockets: {}", sockets.len());
         
         Ok(serde_wasm_bindgen::to_value(&summary)?)
     }
@@ -1577,7 +1837,7 @@ impl Adb {
         use bugreport_extractor_library::run_parsers_concurrently;
         use bugreport_extractor_library::parsers::{
             Parser as DataParser, ParserType, HeaderParser, BatteryParser, 
-            PackageParser, ProcessParser, PowerParser, UsbParser
+            PackageParser, ProcessParser, PowerParser, UsbParser, NetworkParser
         };
         use std::sync::Arc;
         
@@ -1594,6 +1854,7 @@ impl Adb {
         if let Ok(p) = ProcessParser::new() { parsers_to_run.push((ParserType::Process, Box::new(p))); }
         if let Ok(p) = PowerParser::new() { parsers_to_run.push((ParserType::Power, Box::new(p))); }
         if let Ok(p) = UsbParser::new() { parsers_to_run.push((ParserType::Usb, Box::new(p))); }
+        if let Ok(p) = NetworkParser::new() { parsers_to_run.push((ParserType::Network, Box::new(p))); }
         
         let results = run_parsers_concurrently(file_content, parsers_to_run);
         

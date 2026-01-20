@@ -1066,6 +1066,68 @@
                     </div>
                 </div>
 
+                <!-- Network Information -->
+                <div class="result-card" id="network-info-card" style="display: none;">
+                    <div class="section-header">
+                        <h3>🌐 Network Interfaces</h3>
+                        <span class="count-badge" id="network-info-count-badge">0</span>
+                    </div>
+                    <button class="section-toggle collapsed" onclick="toggleSection('network-info')">▼</button>
+                    <div class="section-content collapsed" id="network-info-content">
+                        <div class="search-box">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="network-search-input" placeholder="Search interfaces by name or IP...">
+                        </div>
+                        <div id="network-info-list"></div>
+                    </div>
+                </div>
+
+                <!-- Network Statistics -->
+                <div class="result-card" id="network-stats-card" style="display: none;">
+                    <div class="section-header">
+                        <h3>📊 Network Statistics</h3>
+                        <span class="count-badge" id="network-stats-count-badge">0</span>
+                    </div>
+                    <button class="section-toggle collapsed" onclick="toggleSection('network-stats')">▼</button>
+                    <div class="section-content collapsed" id="network-stats-content">
+                        <div class="search-box">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="network-stats-search-input" placeholder="Search by network name or type...">
+                        </div>
+                        <div id="network-stats-list"></div>
+                    </div>
+                </div>
+
+                <!-- Network Sockets -->
+                <div class="result-card" id="network-sockets-card" style="display: none;">
+                    <div class="section-header">
+                        <h3>🔌 Network Sockets</h3>
+                        <span class="count-badge" id="network-sockets-count-badge">0</span>
+                    </div>
+                    <button class="section-toggle collapsed" onclick="toggleSection('network-sockets')">▼</button>
+                    <div class="section-content collapsed" id="network-sockets-content">
+                        <div class="search-box">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="network-sockets-search-input" placeholder="Search by protocol, address, or state...">
+                        </div>
+                        <div class="data-table-container">
+                            <table class="data-table" id="network-sockets-table">
+                                <thead>
+                                    <tr>
+                                        <th>Protocol</th>
+                                        <th>Local Address</th>
+                                        <th>Remote Address</th>
+                                        <th>State</th>
+                                        <th>UID</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="network-sockets-table-body">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Full Data (JSON) -->
                 <div class="result-card">
                     <div class="section-header">
@@ -1151,7 +1213,10 @@
                 processes: currentResults.processes,
                 battery_apps: currentResults.battery_apps,
                 package_details: currentResults.package_details || [],
-                power_history: currentResults.power_history || []
+                power_history: currentResults.power_history || [],
+                network_info: currentResults.network_info || [],
+                network_stats: currentResults.network_stats || [],
+                sockets: currentResults.sockets || []
             };
             
             const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
@@ -1186,7 +1251,10 @@
                     processes: currentResults.processes,
                     battery_apps: currentResults.battery_apps,
                     package_details: currentResults.package_details || [],
-                    power_history: currentResults.power_history || []
+                    power_history: currentResults.power_history || [],
+                    network_info: currentResults.network_info || [],
+                    network_stats: currentResults.network_stats || [],
+                    sockets: currentResults.sockets || []
                 };
                 
                 await navigator.clipboard.writeText(JSON.stringify(data, null, 2));
@@ -1536,6 +1604,15 @@
 
             // Power history
             displayPowerHistory(data);
+
+            // Network info
+            displayNetworkInfo(data);
+
+            // Network stats
+            displayNetworkStats(data);
+
+            // Network sockets
+            displayNetworkSockets(data);
 
             // JSON output
             document.getElementById('json-output').textContent = JSON.stringify(data, null, 2);
@@ -1940,6 +2017,346 @@
             
             html += '</div>';
             powerHistoryListEl.innerHTML = html;
+        }
+
+        function displayNetworkInfo(data) {
+            const networkInfoCard = document.getElementById('network-info-card');
+            const networkInfoListEl = document.getElementById('network-info-list');
+            const countBadge = document.getElementById('network-info-count-badge');
+
+            if (!data.network_info || !Array.isArray(data.network_info) || data.network_info.length === 0) {
+                networkInfoCard.style.display = 'none';
+                return;
+            }
+
+            networkInfoCard.style.display = 'block';
+            countBadge.textContent = data.network_info.length;
+
+            let html = '<div class="package-details-container">';
+            
+            data.network_info.forEach((net, index) => {
+                html += `<div class="package-detail-item" data-interface-name="${(net.interface_name || '').toLowerCase()}" data-ip="${(net.ip_address || '').toLowerCase()}">`;
+                html += `<div class="package-detail-header">`;
+                html += `<h4>${escapeHtml(net.interface_name || 'Unknown Interface')}</h4>`;
+                if (net.state) {
+                    // Check if state contains "UP" or "LOWER_UP" to determine if interface is active
+                    const isUp = net.state.toLowerCase().includes('up') || net.state.toLowerCase().includes('lower_up');
+                    const stateClass = isUp ? 'success' : 'warning';
+                    html += `<span class="version-badge" style="background: var(--${stateClass});">${isUp ? 'UP' : 'DOWN'}</span>`;
+                }
+                html += `</div>`;
+                
+                html += `<div class="package-detail-content">`;
+                
+                // Basic Info
+                html += `<div class="detail-section">`;
+                html += `<strong>Network Information</strong>`;
+                html += `<table class="detail-table">`;
+                if (net.ip_address) {
+                    html += `<tr><td>IP Address:</td><td><code>${escapeHtml(net.ip_address)}</code></td></tr>`;
+                } else {
+                    html += `<tr><td>IP Address:</td><td><span style="color: var(--text-secondary); font-style: italic;">None</span></td></tr>`;
+                }
+                if (net.mac_address) {
+                    html += `<tr><td>MAC Address:</td><td><code>${escapeHtml(net.mac_address)}</code></td></tr>`;
+                }
+                if (net.state) {
+                    // Display flags as badges
+                    const flags = net.state.split(', ').filter(f => f.trim());
+                    if (flags.length > 0) {
+                        html += `<tr><td>Flags:</td><td>`;
+                        flags.forEach(flag => {
+                            const flagLower = flag.toLowerCase();
+                            let flagClass = 'warning';
+                            if (flagLower.includes('up') || flagLower.includes('lower_up')) {
+                                flagClass = 'success';
+                            } else if (flagLower.includes('broadcast') || flagLower.includes('multicast')) {
+                                flagClass = 'info';
+                            }
+                            html += `<span style="display: inline-block; background: var(--${flagClass}); color: white; padding: 0.125rem 0.375rem; border-radius: 4px; font-size: 0.75rem; margin-right: 0.25rem; margin-bottom: 0.25rem;">${escapeHtml(flag.trim())}</span>`;
+                        });
+                        html += `</td></tr>`;
+                    }
+                }
+                if (net.mtu) {
+                    html += `<tr><td>MTU:</td><td>${net.mtu}</td></tr>`;
+                }
+                html += `</table>`;
+                html += `</div>`;
+                
+                // Statistics
+                if (net.rx_bytes !== null && net.rx_bytes !== undefined || net.tx_bytes !== null && net.tx_bytes !== undefined) {
+                    html += `<div class="detail-section">`;
+                    html += `<strong>Statistics</strong>`;
+                    html += `<table class="detail-table">`;
+                    if (net.rx_bytes !== null && net.rx_bytes !== undefined) {
+                        html += `<tr><td>RX Bytes:</td><td>${formatBytes(net.rx_bytes)}</td></tr>`;
+                    }
+                    if (net.tx_bytes !== null && net.tx_bytes !== undefined) {
+                        html += `<tr><td>TX Bytes:</td><td>${formatBytes(net.tx_bytes)}</td></tr>`;
+                    }
+                    if (net.rx_packets !== null && net.rx_packets !== undefined) {
+                        html += `<tr><td>RX Packets:</td><td>${net.rx_packets.toLocaleString()}</td></tr>`;
+                    }
+                    if (net.tx_packets !== null && net.tx_packets !== undefined) {
+                        html += `<tr><td>TX Packets:</td><td>${net.tx_packets.toLocaleString()}</td></tr>`;
+                    }
+                    html += `</table>`;
+                    html += `</div>`;
+                }
+                
+                html += `</div>`;
+                html += `</div>`;
+            });
+            
+            html += '</div>';
+            networkInfoListEl.innerHTML = html;
+
+            // Add search functionality
+            const searchInput = document.getElementById('network-search-input');
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.toLowerCase();
+                const items = document.querySelectorAll('.package-detail-item[data-interface-name]');
+                let visibleCount = 0;
+
+                items.forEach(item => {
+                    const interfaceName = item.getAttribute('data-interface-name') || '';
+                    const ip = item.getAttribute('data-ip') || '';
+                    
+                    if (interfaceName.includes(query) || ip.includes(query)) {
+                        item.style.display = 'block';
+                        visibleCount++;
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            });
+        }
+
+        function displayNetworkStats(data) {
+            const networkStatsCard = document.getElementById('network-stats-card');
+            const networkStatsListEl = document.getElementById('network-stats-list');
+            const countBadge = document.getElementById('network-stats-count-badge');
+
+            if (!data.network_stats || !Array.isArray(data.network_stats) || data.network_stats.length === 0) {
+                networkStatsCard.style.display = 'none';
+                return;
+            }
+
+            networkStatsCard.style.display = 'block';
+            countBadge.textContent = data.network_stats.length;
+
+            let html = '<div class="package-details-container">';
+            
+            data.network_stats.forEach((stat, index) => {
+                const networkType = stat.network_type || 'Unknown';
+                const networkName = stat.wifi_network_name || stat.subscriber_id || 'N/A';
+                
+                html += `<div class="package-detail-item" data-network-type="${networkType.toLowerCase()}" data-network-name="${networkName.toLowerCase()}">`;
+                html += `<div class="package-detail-header">`;
+                html += `<h4>${escapeHtml(networkName)}</h4>`;
+                html += `<span class="version-badge" style="background: ${networkType === 'WIFI' ? 'var(--accent)' : 'var(--warning)'};">${escapeHtml(networkType)}</span>`;
+                html += `</div>`;
+                
+                html += `<div class="package-detail-content">`;
+                
+                // Basic Info
+                html += `<div class="detail-section">`;
+                html += `<strong>Network Information</strong>`;
+                html += `<table class="detail-table">`;
+                html += `<tr><td>Network Type:</td><td>${escapeHtml(networkType)}</td></tr>`;
+                if (stat.wifi_network_name) {
+                    html += `<tr><td>WiFi Name:</td><td>${escapeHtml(stat.wifi_network_name)}</td></tr>`;
+                }
+                if (stat.subscriber_id) {
+                    html += `<tr><td>Subscriber ID:</td><td>${escapeHtml(stat.subscriber_id)}</td></tr>`;
+                }
+                if (stat.rat_type) {
+                    html += `<tr><td>RAT Type:</td><td>${escapeHtml(stat.rat_type)}</td></tr>`;
+                }
+                if (stat.default_network !== null && stat.default_network !== undefined) {
+                    html += `<tr><td>Default Network:</td><td>${stat.default_network ? 'Yes' : 'No'}</td></tr>`;
+                }
+                if (stat.metered !== null && stat.metered !== undefined) {
+                    html += `<tr><td>Metered:</td><td>${stat.metered ? 'Yes' : 'No'}</td></tr>`;
+                }
+                html += `</table>`;
+                html += `</div>`;
+                
+                // Statistics
+                if (stat.rx_bytes !== null && stat.rx_bytes !== undefined || stat.tx_bytes !== null && stat.tx_bytes !== undefined) {
+                    html += `<div class="detail-section">`;
+                    html += `<strong>Statistics</strong>`;
+                    html += `<table class="detail-table">`;
+                    if (stat.rx_bytes !== null && stat.rx_bytes !== undefined) {
+                        html += `<tr><td>RX Bytes:</td><td>${formatBytes(stat.rx_bytes)}</td></tr>`;
+                    }
+                    if (stat.tx_bytes !== null && stat.tx_bytes !== undefined) {
+                        html += `<tr><td>TX Bytes:</td><td>${formatBytes(stat.tx_bytes)}</td></tr>`;
+                    }
+                    if (stat.rx_packets !== null && stat.rx_packets !== undefined) {
+                        html += `<tr><td>RX Packets:</td><td>${stat.rx_packets.toLocaleString()}</td></tr>`;
+                    }
+                    if (stat.tx_packets !== null && stat.tx_packets !== undefined) {
+                        html += `<tr><td>TX Packets:</td><td>${stat.tx_packets.toLocaleString()}</td></tr>`;
+                    }
+                    html += `</table>`;
+                    html += `</div>`;
+                }
+                
+                html += `</div>`;
+                html += `</div>`;
+            });
+            
+            html += '</div>';
+            networkStatsListEl.innerHTML = html;
+
+            // Add search functionality
+            const searchInput = document.getElementById('network-stats-search-input');
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.toLowerCase();
+                const items = document.querySelectorAll('.package-detail-item[data-network-type]');
+                let visibleCount = 0;
+
+                items.forEach(item => {
+                    const networkType = item.getAttribute('data-network-type') || '';
+                    const networkName = item.getAttribute('data-network-name') || '';
+                    
+                    if (networkType.includes(query) || networkName.includes(query)) {
+                        item.style.display = 'block';
+                        visibleCount++;
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            });
+        }
+
+        function displayNetworkSockets(data) {
+            const networkSocketsCard = document.getElementById('network-sockets-card');
+            const networkSocketsTableBody = document.getElementById('network-sockets-table-body');
+            const countBadge = document.getElementById('network-sockets-count-badge');
+
+            if (!data.sockets || !Array.isArray(data.sockets) || data.sockets.length === 0) {
+                networkSocketsCard.style.display = 'none';
+                return;
+            }
+
+            networkSocketsCard.style.display = 'block';
+            countBadge.textContent = data.sockets.length;
+
+            // Clear table
+            networkSocketsTableBody.innerHTML = '';
+
+            // Add sockets to table
+            data.sockets.forEach(socket => {
+                const row = document.createElement('tr');
+                const protocol = socket.protocol || '-';
+                const localAddr = socket.local_address || '-';
+                const remoteAddr = socket.remote_address || '-';
+                const state = socket.state || '-';
+                const uid = socket.uid !== null && socket.uid !== undefined ? socket.uid.toString() : '-';
+                
+                row.setAttribute('data-protocol', protocol.toLowerCase());
+                row.setAttribute('data-local', localAddr.toLowerCase());
+                row.setAttribute('data-remote', remoteAddr.toLowerCase());
+                row.setAttribute('data-state', state.toLowerCase());
+                
+                row.innerHTML = `
+                    <td><code>${escapeHtml(protocol)}</code></td>
+                    <td><code>${escapeHtml(localAddr)}</code></td>
+                    <td><code>${escapeHtml(remoteAddr)}</code></td>
+                    <td>${escapeHtml(state)}</td>
+                    <td>${uid}</td>
+                `;
+                
+                // Add click handler to show details
+                row.style.cursor = 'pointer';
+                row.onclick = () => {
+                    showSocketDetails(socket);
+                };
+                
+                networkSocketsTableBody.appendChild(row);
+            });
+
+            // Add search functionality
+            const searchInput = document.getElementById('network-sockets-search-input');
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.toLowerCase();
+                const rows = networkSocketsTableBody.querySelectorAll('tr');
+                let visibleCount = 0;
+
+                rows.forEach(row => {
+                    const protocol = row.getAttribute('data-protocol') || '';
+                    const local = row.getAttribute('data-local') || '';
+                    const remote = row.getAttribute('data-remote') || '';
+                    const state = row.getAttribute('data-state') || '';
+                    
+                    if (protocol.includes(query) || local.includes(query) || remote.includes(query) || state.includes(query)) {
+                        row.style.display = '';
+                        visibleCount++;
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            });
+        }
+
+        function showSocketDetails(socket) {
+            let details = '<div class="detail-section">';
+            details += '<strong>Socket Details</strong>';
+            details += '<table class="detail-table">';
+            
+            if (socket.protocol) {
+                details += `<tr><td>Protocol:</td><td><code>${escapeHtml(socket.protocol)}</code></td></tr>`;
+            }
+            if (socket.local_address) {
+                details += `<tr><td>Local Address:</td><td><code>${escapeHtml(socket.local_address)}</code></td></tr>`;
+            }
+            if (socket.remote_address) {
+                details += `<tr><td>Remote Address:</td><td><code>${escapeHtml(socket.remote_address)}</code></td></tr>`;
+            }
+            if (socket.state) {
+                details += `<tr><td>State:</td><td>${escapeHtml(socket.state)}</td></tr>`;
+            }
+            if (socket.uid !== null && socket.uid !== undefined) {
+                details += `<tr><td>UID:</td><td>${socket.uid}</td></tr>`;
+            }
+            if (socket.inode !== null && socket.inode !== undefined) {
+                details += `<tr><td>Inode:</td><td>${socket.inode}</td></tr>`;
+            }
+            if (socket.recv_q !== null && socket.recv_q !== undefined) {
+                details += `<tr><td>Receive Queue:</td><td>${socket.recv_q}</td></tr>`;
+            }
+            if (socket.send_q !== null && socket.send_q !== undefined) {
+                details += `<tr><td>Send Queue:</td><td>${socket.send_q}</td></tr>`;
+            }
+            if (socket.socket_key) {
+                details += `<tr><td>Socket Key:</td><td><code>${escapeHtml(socket.socket_key)}</code></td></tr>`;
+            }
+            if (socket.additional_info) {
+                details += `<tr><td>Additional Info:</td><td><code style="font-size: 0.75rem; word-break: break-all;">${escapeHtml(socket.additional_info)}</code></td></tr>`;
+            }
+            
+            details += '</table>';
+            details += '</div>';
+            
+            // Show in a modal or alert (simple alert for now, can be enhanced)
+            const modal = document.createElement('div');
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;';
+            modal.innerHTML = `
+                <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 2rem; max-width: 80%; max-height: 80%; overflow-y: auto; position: relative;">
+                    <button onclick="this.closest('div[style*=\"position: fixed\"]').remove()" style="position: absolute; top: 1rem; right: 1rem; background: var(--error); color: white; border: none; border-radius: 4px; padding: 0.5rem 1rem; cursor: pointer;">Close</button>
+                    <h3 style="margin-bottom: 1rem;">Socket Details</h3>
+                    ${details}
+                </div>
+            `;
+            document.body.appendChild(modal);
+            modal.onclick = (e) => {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            };
         }
 
         function parseInstallLogs(logs) {
