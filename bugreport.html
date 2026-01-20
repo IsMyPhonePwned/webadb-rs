@@ -1042,11 +1042,14 @@
                 <!-- Package Installation History -->
                 <div class="result-card" id="package-history-card" style="display: none;">
                     <div class="section-header">
-                        <h3>📦 Package Installation History</h3>
+                        <h3>📦 Package History (Including Deleted)</h3>
                         <span class="count-badge" id="package-count-badge">0</span>
                     </div>
                     <button class="section-toggle" onclick="toggleSection('package-history')">▼</button>
                     <div class="section-content" id="package-history-content">
+                        <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">
+                            Packages that were installed or uninstalled. Packages not found in the "Package Details" section have been deleted.
+                        </p>
                         <div class="search-box">
                             <span class="search-icon">🔍</span>
                             <input type="text" id="package-search-input" placeholder="Search packages by name or installer...">
