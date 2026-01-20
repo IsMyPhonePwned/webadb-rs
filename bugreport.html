@@ -1108,7 +1108,7 @@
                     <div class="section-content collapsed" id="network-sockets-content">
                         <div class="search-box">
                             <span class="search-icon">🔍</span>
-                            <input type="text" id="network-sockets-search-input" placeholder="Search by protocol, address, or state...">
+                            <input type="text" id="network-sockets-search-input" placeholder="Search by protocol, address, port, or state...">
                         </div>
                         <div class="data-table-container">
                             <table class="data-table" id="network-sockets-table">
@@ -1116,7 +1116,9 @@
                                     <tr>
                                         <th>Protocol</th>
                                         <th>Local Address</th>
+                                        <th>Local Port</th>
                                         <th>Remote Address</th>
+                                        <th>Remote Port</th>
                                         <th>State</th>
                                         <th>UID</th>
                                     </tr>
@@ -2253,19 +2255,25 @@
                 const row = document.createElement('tr');
                 const protocol = socket.protocol || '-';
                 const localAddr = socket.local_address || '-';
+                const localPort = socket.local_port !== null && socket.local_port !== undefined ? socket.local_port.toString() : '-';
                 const remoteAddr = socket.remote_address || '-';
+                const remotePort = socket.remote_port !== null && socket.remote_port !== undefined ? socket.remote_port.toString() : '-';
                 const state = socket.state || '-';
                 const uid = socket.uid !== null && socket.uid !== undefined ? socket.uid.toString() : '-';
                 
                 row.setAttribute('data-protocol', protocol.toLowerCase());
                 row.setAttribute('data-local', localAddr.toLowerCase());
+                row.setAttribute('data-local-port', localPort);
                 row.setAttribute('data-remote', remoteAddr.toLowerCase());
+                row.setAttribute('data-remote-port', remotePort);
                 row.setAttribute('data-state', state.toLowerCase());
                 
                 row.innerHTML = `
                     <td><code>${escapeHtml(protocol)}</code></td>
                     <td><code>${escapeHtml(localAddr)}</code></td>
+                    <td>${localPort !== '-' ? `<code>${localPort}</code>` : '-'}</td>
                     <td><code>${escapeHtml(remoteAddr)}</code></td>
+                    <td>${remotePort !== '-' ? `<code>${remotePort}</code>` : '-'}</td>
                     <td>${escapeHtml(state)}</td>
                     <td>${uid}</td>
                 `;
@@ -2289,10 +2297,17 @@
                 rows.forEach(row => {
                     const protocol = row.getAttribute('data-protocol') || '';
                     const local = row.getAttribute('data-local') || '';
+                    const localPort = row.getAttribute('data-local-port') || '';
                     const remote = row.getAttribute('data-remote') || '';
+                    const remotePort = row.getAttribute('data-remote-port') || '';
                     const state = row.getAttribute('data-state') || '';
                     
-                    if (protocol.includes(query) || local.includes(query) || remote.includes(query) || state.includes(query)) {
+                    if (protocol.includes(query) || 
+                        local.includes(query) || 
+                        localPort.includes(query) ||
+                        remote.includes(query) || 
+                        remotePort.includes(query) ||
+                        state.includes(query)) {
                         row.style.display = '';
                         visibleCount++;
                     } else {
@@ -2313,8 +2328,20 @@
             if (socket.local_address) {
                 details += `<tr><td>Local Address:</td><td><code>${escapeHtml(socket.local_address)}</code></td></tr>`;
             }
+            if (socket.local_ip) {
+                details += `<tr><td>Local IP:</td><td><code>${escapeHtml(socket.local_ip)}</code></td></tr>`;
+            }
+            if (socket.local_port !== null && socket.local_port !== undefined) {
+                details += `<tr><td>Local Port:</td><td><code>${socket.local_port}</code></td></tr>`;
+            }
             if (socket.remote_address) {
                 details += `<tr><td>Remote Address:</td><td><code>${escapeHtml(socket.remote_address)}</code></td></tr>`;
+            }
+            if (socket.remote_ip) {
+                details += `<tr><td>Remote IP:</td><td><code>${escapeHtml(socket.remote_ip)}</code></td></tr>`;
+            }
+            if (socket.remote_port !== null && socket.remote_port !== undefined) {
+                details += `<tr><td>Remote Port:</td><td><code>${socket.remote_port}</code></td></tr>`;
             }
             if (socket.state) {
                 details += `<tr><td>State:</td><td>${escapeHtml(socket.state)}</td></tr>`;

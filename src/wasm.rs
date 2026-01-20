@@ -712,7 +712,11 @@ impl Adb {
         struct SocketInfo {
             protocol: Option<String>,
             local_address: Option<String>,
+            local_ip: Option<String>,
+            local_port: Option<u16>,
             remote_address: Option<String>,
+            remote_ip: Option<String>,
+            remote_port: Option<u16>,
             state: Option<String>,
             uid: Option<u32>,
             inode: Option<u64>,
@@ -1545,9 +1549,25 @@ impl Adb {
                                                 .and_then(|v| v.as_str())
                                                 .map(|s| s.to_string());
                                             
+                                            let local_ip = socket_obj.get("local_ip")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string());
+                                            
+                                            let local_port = socket_obj.get("local_port")
+                                                .and_then(|v| v.as_u64())
+                                                .map(|v| v as u16);
+                                            
                                             let remote_address = socket_obj.get("remote_address")
                                                 .and_then(|v| v.as_str())
                                                 .map(|s| s.to_string());
+                                            
+                                            let remote_ip = socket_obj.get("remote_ip")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string());
+                                            
+                                            let remote_port = socket_obj.get("remote_port")
+                                                .and_then(|v| v.as_u64())
+                                                .map(|v| v as u16);
                                             
                                             let state = socket_obj.get("state")
                                                 .and_then(|v| v.as_str())
@@ -1577,7 +1597,11 @@ impl Adb {
                                             sockets.push(SocketInfo {
                                                 protocol,
                                                 local_address,
+                                                local_ip,
+                                                local_port,
                                                 remote_address,
+                                                remote_ip,
+                                                remote_port,
                                                 state,
                                                 uid,
                                                 inode,
