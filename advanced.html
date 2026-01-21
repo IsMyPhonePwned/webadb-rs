@@ -313,6 +313,7 @@
         <div class="controls">
             <button id="connectBtn">Connect to Device</button>
             <button id="disconnectBtn" disabled>Disconnect</button>
+            <button id="resetQueueBtn" onclick="resetQueue()" style="background: #f44336; display: none;" title="Reset stuck queue">🔄 Reset Queue</button>
         </div>
 
         <!-- Connection Diagnostics Section -->
@@ -673,6 +674,291 @@
         let currentReport = null;
         let currentLog = null;
         
+        // Operation queue to prevent concurrent access
+        let operationQueue = [];
+        let isProcessingQueue = false;
+        let queueProcessingStartTime = null;
+        let queueWatchdogInterval = null;
+        
+        // Watchdog to detect stuck queues
+        function startQueueWatchdog() {
+            if (queueWatchdogInterval) {
+                clearInterval(queueWatchdogInterval);
+            }
+            
+            queueWatchdogInterval = setInterval(() => {
+                if (isProcessingQueue && queueProcessingStartTime) {
+                    const stuckTime = Date.now() - queueProcessingStartTime;
+                    // If queue has been processing for more than 10 minutes, something is wrong
+                    if (stuckTime > 10 * 60 * 1000) {
+                        console.error(`[Queue] WARNING: Queue appears to be stuck! Processing for ${formatDuration(stuckTime)}`);
+                        console.error(`[Queue] Queue state: isProcessing=${isProcessingQueue}, queueLength=${operationQueue.length}, resetting...`);
+                        resetQueue();
+                    } else if (stuckTime > 2 * 60 * 1000) {
+                        // Warn after 2 minutes
+                        console.warn(`[Queue] Queue has been processing for ${formatDuration(stuckTime)}. This might be normal for long operations.`);
+                    }
+                } else if (isProcessingQueue && !queueProcessingStartTime) {
+                    // Queue says it's processing but we don't have a start time - reset
+                    console.error(`[Queue] WARNING: Queue state inconsistent! isProcessing=true but no start time. Resetting...`);
+                    resetQueue();
+                }
+            }, 30000); // Check every 30 seconds
+        }
+        
+        function stopQueueWatchdog() {
+            if (queueWatchdogInterval) {
+                clearInterval(queueWatchdogInterval);
+                queueWatchdogInterval = null;
+            }
+        }
+        
+        // Reset queue state (emergency recovery)
+        function resetQueue() {
+            console.error(`[Queue] RESET: Resetting queue state`);
+            const queueLength = operationQueue.length;
+            
+            // Reject all pending operations
+            operationQueue.forEach((item, index) => {
+                try {
+                    if (item && item.reject) {
+                        item.reject(new Error('Queue was reset due to stuck state'));
+                    }
+                } catch (e) {
+                    console.error(`[Queue] Error rejecting queued operation ${index}:`, e);
+                }
+            });
+            
+            operationQueue = [];
+            isProcessingQueue = false;
+            queueProcessingStartTime = null;
+            stopQueueWatchdog();
+            
+            // Hide reset button
+            const resetBtn = document.getElementById('resetQueueBtn');
+            if (resetBtn) {
+                resetBtn.style.display = 'none';
+            }
+            
+            console.error(`[Queue] RESET: Cleared ${queueLength} pending operations. Queue is now empty and ready.`);
+            if (queueLength > 0) {
+                showError(`Queue was reset. ${queueLength} pending operation(s) were cancelled. Please try again.`);
+            } else {
+                showSuccess('Queue reset successfully.');
+            }
+        }
+        
+        // Expose reset function globally for manual recovery
+        window.resetQueue = resetQueue;
+        
+        // Show/hide reset button based on queue state
+        function updateResetButtonVisibility() {
+            const resetBtn = document.getElementById('resetQueueBtn');
+            if (resetBtn) {
+                if (isProcessingQueue || operationQueue.length > 0) {
+                    resetBtn.style.display = 'inline-block';
+                } else {
+                    resetBtn.style.display = 'none';
+                }
+            }
+        }
+        
+        // Helper function to format duration in human-readable format
+        function formatDuration(ms) {
+            if (ms < 1000) {
+                return `${ms.toFixed(2)}ms`;
+            }
+            const seconds = Math.floor(ms / 1000);
+            const milliseconds = Math.floor(ms % 1000);
+            if (seconds < 60) {
+                return `${seconds}s ${milliseconds}ms (${ms.toFixed(2)}ms)`;
+            }
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            return `${minutes}m ${remainingSeconds}s ${milliseconds}ms (${ms.toFixed(2)}ms)`;
+        }
+        
+        async function queueOperation(operation) {
+            const queueId = Math.random().toString(36).substr(2, 9);
+            const queueLengthBefore = operationQueue.length;
+            console.log(`[Queue] Adding operation to queue (id: ${queueId}), current queue length: ${queueLengthBefore}, will be: ${queueLengthBefore + 1}`);
+            return new Promise((resolve, reject) => {
+                operationQueue.push({ operation, resolve, reject, queueId });
+                const queueLengthAfter = operationQueue.length;
+                console.log(`[Queue] Operation queued (id: ${queueId}), queue length now: ${queueLengthAfter}, isProcessing: ${isProcessingQueue}`);
+                
+                // Update reset button visibility
+                updateResetButtonVisibility();
+                
+                if (!isProcessingQueue) {
+                    console.log(`[Queue] Starting queue processing (id: ${queueId})`);
+                    // Use setTimeout to ensure this happens asynchronously
+                    setTimeout(() => {
+                        if (!isProcessingQueue && operationQueue.length > 0) {
+                            processQueue();
+                        } else if (isProcessingQueue) {
+                            console.log(`[Queue] Queue started processing between check and setTimeout`);
+                        } else if (operationQueue.length === 0) {
+                            console.log(`[Queue] Queue was cleared between check and setTimeout`);
+                        }
+                    }, 0);
+                } else {
+                    console.log(`[Queue] Queue already processing, operation queued (id: ${queueId}). Will be processed after current operation(s) complete.`);
+                    
+                    // Safety check: if queue has been processing for a very long time, warn user
+                    if (queueProcessingStartTime) {
+                        const processingTime = Date.now() - queueProcessingStartTime;
+                        if (processingTime > 5 * 60 * 1000) {
+                            console.warn(`[Queue] WARNING: Queue has been processing for ${formatDuration(processingTime)}. This might indicate a stuck operation.`);
+                            console.warn(`[Queue] If operations are not completing, click the "Reset Queue" button or call resetQueue() in the console.`);
+                            const resetBtn = document.getElementById('resetQueueBtn');
+                            if (resetBtn) {
+                                resetBtn.style.display = 'inline-block';
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        async function processQueue() {
+            if (isProcessingQueue) {
+                console.log('[Queue] Already processing, skipping');
+                return;
+            }
+            
+            console.log(`[Queue] Starting queue processing, ${operationQueue.length} operations pending`);
+            isProcessingQueue = true;
+            queueProcessingStartTime = Date.now();
+            startQueueWatchdog();
+            updateResetButtonVisibility();
+            
+            let processed = 0;
+            const maxIterations = 1000; // Safety limit to prevent infinite loops
+            let iterations = 0;
+            
+            try {
+                while (operationQueue.length > 0 && iterations < maxIterations) {
+                iterations++;
+                const queueItem = operationQueue.shift();
+                if (!queueItem) {
+                    console.warn(`[Queue] WARNING: Shifted null/undefined item from queue, breaking loop`);
+                    break;
+                }
+                
+                const { operation, resolve, reject, queueId } = queueItem;
+                processed++;
+                const totalOps = processed + operationQueue.length;
+                const itemId = queueId || `op-${processed}`;
+                console.log(`[Queue] Processing operation ${processed}/${totalOps} (id: ${itemId}, ${operationQueue.length} remaining in queue)`);
+                const startTime = performance.now();
+                
+                let timeoutId = null;
+                try {
+                    // Wrap in Promise.resolve to ensure it's always a promise
+                    const operationPromise = Promise.resolve(operation());
+                    
+                    // Add timeout to prevent operations from hanging indefinitely
+                    // Use longer timeout for operations that might take a while (like bugreport)
+                    // Check if this looks like a bugreport operation by checking the operation function
+                    const operationStr = operation.toString();
+                    const isLongOperation = operationStr.includes('bugreport') || 
+                                           operationStr.includes('Bugreport') ||
+                                           operationStr.includes('bugreport()');
+                    const timeoutMs = isLongOperation ? 15 * 60 * 1000 : 5 * 60 * 1000; // 15 min for bugreport, 5 min for others
+                    
+                    const timeoutPromise = new Promise((_, timeoutReject) => {
+                        timeoutId = setTimeout(() => {
+                            timeoutReject(new Error(`Operation timeout after ${formatDuration(timeoutMs)}`));
+                        }, timeoutMs);
+                    });
+                    
+                    const result = await Promise.race([operationPromise, timeoutPromise]);
+                    
+                    // Clear timeout if operation completed successfully
+                    if (timeoutId) {
+                        clearTimeout(timeoutId);
+                        timeoutId = null;
+                    }
+                    
+                    const duration = performance.now() - startTime;
+                    console.log(`[Queue] Operation ${processed} (id: ${itemId}) completed in ${formatDuration(duration)}`);
+                    try {
+                        resolve(result);
+                    } catch (resolveError) {
+                        console.error(`[Queue] Error resolving promise for operation ${processed} (id: ${itemId}):`, resolveError);
+                    }
+                } catch (error) {
+                    // Clear timeout if there was an error
+                    if (timeoutId) {
+                        clearTimeout(timeoutId);
+                        timeoutId = null;
+                    }
+                    
+                    const duration = performance.now() - startTime;
+                    console.error(`[Queue] Operation ${processed} failed after ${formatDuration(duration)}:`, error);
+                    try {
+                        reject(error);
+                    } catch (rejectError) {
+                        console.error(`[Queue] Error rejecting promise for operation ${processed}:`, rejectError);
+                    }
+                }
+                
+                // Small delay to allow other operations to be queued if needed
+                // This ensures we don't miss operations that are queued during processing
+                if (operationQueue.length > 0) {
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+            }
+            
+            if (iterations >= maxIterations) {
+                console.error(`[Queue] WARNING: Reached max iterations (${maxIterations}), stopping queue processing`);
+            }
+            
+            const remainingOps = operationQueue.length;
+            if (remainingOps > 0) {
+                console.warn(`[Queue] WARNING: ${remainingOps} operations still in queue after processing stopped`);
+            }
+            
+                const processingDuration = queueProcessingStartTime ? Date.now() - queueProcessingStartTime : 0;
+                console.log(`[Queue] Queue processing complete, processed ${processed} operations in ${formatDuration(processingDuration)}`);
+            } catch (error) {
+                console.error(`[Queue] FATAL ERROR in processQueue:`, error);
+                console.error(`[Queue] Error stack:`, error.stack);
+                showError(`Queue processing error: ${error.message}. Queue has been reset.`);
+                // Reset queue state on fatal error
+                operationQueue = [];
+            } finally {
+                // IMPORTANT: Always reset the flag, even on error
+                // This ensures that if new operations are queued, they can trigger processing
+                isProcessingQueue = false;
+                queueProcessingStartTime = null;
+                stopQueueWatchdog();
+                updateResetButtonVisibility();
+                
+                // Check if any new operations were added while we were processing
+                // This handles the case where an operation was queued right as we finished
+                const newOpsCount = operationQueue.length;
+                if (newOpsCount > 0) {
+                    console.log(`[Queue] ${newOpsCount} new operation(s) detected after completion, restarting queue processing`);
+                    // Use setTimeout to avoid recursion issues and ensure state is fully reset
+                    setTimeout(() => {
+                        // Double-check conditions to avoid race conditions
+                        if (!isProcessingQueue && operationQueue.length > 0) {
+                            console.log(`[Queue] Restarting queue processing for ${operationQueue.length} operation(s)`);
+                            processQueue();
+                        } else if (isProcessingQueue) {
+                            console.log(`[Queue] Queue already processing, skipping restart`);
+                        } else if (operationQueue.length === 0) {
+                            console.log(`[Queue] Queue is empty, no restart needed`);
+                        }
+                    }, 10); // Small delay to ensure state is fully reset
+                } else {
+                    console.log(`[Queue] No new operations, queue processing finished`);
+                }
+            }
+        }
+        
         // Shell state
         let commandHistory = [];
         let historyIndex = -1;
@@ -684,7 +970,16 @@
             const output = document.getElementById('terminalOutput');
             const command = input.value.trim();
             
-            if (!command || isExecuting) return;
+            console.log(`[Shell] executeShellCommand called with command: "${command}"`);
+            
+            if (!command) {
+                console.log('[Shell] Empty command, returning');
+                return;
+            }
+            if (isExecuting) {
+                console.log('[Shell] Already executing, returning');
+                return;
+            }
             
             // Add to history
             if (commandHistory.length === 0 || commandHistory[commandHistory.length - 1] !== command) {
@@ -698,10 +993,22 @@
             input.disabled = true;
             isExecuting = true;
             
+            const startTime = performance.now();
+            console.log(`[Shell] Executing command: "${command}"`);
+            
             try {
-                const result = await adb.shell(command);
+                const result = await queueOperation(async () => {
+                    console.log(`[Shell] Calling adb.shell("${command}")`);
+                    const shellResult = await adb.shell(command);
+                    console.log(`[Shell] Command completed, result length: ${shellResult.length} chars`);
+                    return shellResult;
+                });
+                const duration = performance.now() - startTime;
+                console.log(`[Shell] Command executed successfully in ${formatDuration(duration)}`);
                 appendTerminal(result + '\n', '#d4d4d4');
             } catch (error) {
+                const duration = performance.now() - startTime;
+                console.error(`[Shell] Command failed after ${formatDuration(duration)}:`, error);
                 appendTerminal(`Error: ${error}\n`, '#ff6b6b');
             } finally {
                 input.disabled = false;
@@ -803,13 +1110,24 @@
         }
 
         async function refreshFileList() {
+            console.log(`[FileManager] refreshFileList called for path: ${currentPath}`);
+            const startTime = performance.now();
             try {
-                const entries = await adb.list_directory(currentPath);
+                const entries = await queueOperation(async () => {
+                    console.log(`[FileManager] Calling adb.list_directory("${currentPath}")`);
+                    const result = await adb.list_directory(currentPath);
+                    console.log(`[FileManager] Received ${result.length} directory entries`);
+                    return result;
+                });
+                const duration = performance.now() - startTime;
+                console.log(`[FileManager] Directory listing completed in ${formatDuration(duration)}`);
                 fileList = entries;
                 selectedFiles.clear();
                 renderFileList();
                 renderBreadcrumb();
             } catch (error) {
+                const duration = performance.now() - startTime;
+                console.error(`[FileManager] Failed after ${formatDuration(duration)}:`, error);
                 showError('Failed to list directory: ' + error);
                 document.getElementById('fileTableBody').innerHTML = `
                     <tr><td colspan="4" style="padding: 40px; text-align: center; color: #f44336;">
@@ -969,7 +1287,9 @@
         async function downloadFile(path) {
             try {
                 showSuccess('Downloading: ' + path.split('/').pop());
-                const data = await adb.pull_file(path);
+                const data = await queueOperation(async () => {
+                    return await adb.pull_file(path);
+                });
                 const blob = new Blob([data]);
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -1006,7 +1326,10 @@
                         currentPath + file.name : 
                         currentPath + '/' + file.name;
                     
-                    await adb.push_file(data, remotePath);
+                    // wasm-bindgen automatically converts Uint8Array to Vec<u8>
+                    await queueOperation(async () => {
+                        return await adb.push_file(data, remotePath);
+                    });
                     
                     progressBar.style.width = ((i + 1) / files.length * 100) + '%';
                     progressText.textContent = Math.round((i + 1) / files.length * 100) + '%';
@@ -1117,7 +1440,9 @@
             const newPath = parentPath + '/' + newName;
             
             try {
-                await adb.rename_file(renameTarget, newPath);
+                await queueOperation(async () => {
+                    return await adb.rename_file(renameTarget, newPath);
+                });
                 showSuccess('Renamed successfully');
                 closeRenameModal();
                 await refreshFileList();
@@ -1143,7 +1468,9 @@
             const newPath = currentPath.endsWith('/') ? currentPath + name : currentPath + '/' + name;
             
             try {
-                await adb.create_directory(newPath);
+                await queueOperation(async () => {
+                    return await adb.create_directory(newPath);
+                });
                 showSuccess('Folder created');
                 closeNewFolderModal();
                 await refreshFileList();
@@ -1168,7 +1495,9 @@
             if (!contextMenuTarget) return;
             
             try {
-                await adb.delete_path(contextMenuTarget);
+                await queueOperation(async () => {
+                    return await adb.delete_path(contextMenuTarget);
+                });
                 showSuccess('Deleted successfully');
                 closeDeleteConfirmModal();
                 await refreshFileList();
@@ -1433,11 +1762,22 @@
         }
 
         async function connect() {
+            console.log('[Connect] Starting connection...');
+            const startTime = performance.now();
             try {
                 updateStatus('working', 'Connecting...');
-                await adb.connect();
+                console.log('[Connect] Requesting device and connecting...');
+                const deviceInfo = await queueOperation(async () => {
+                    console.log('[Connect] Calling adb.connect()');
+                    const info = await adb.connect();
+                    console.log('[Connect] adb.connect() completed, device info:', info);
+                    return info;
+                });
+                const duration = performance.now() - startTime;
+                console.log(`[Connect] Connection successful in ${formatDuration(duration)}`);
                 updateStatus('connected', 'Connected');
                 enableButtons();
+                console.log('[Connect] Buttons enabled, refreshing diagnostics...');
                 await refreshDiagnostics();
                 
                 // Show terminal welcome
@@ -1447,11 +1787,59 @@
                 appendTerminal('='.repeat(60) + '\n', '#00ff00');
                 
                 try {
-                    const props = await adb.get_properties();
-                    appendTerminal(`\n Device: ${props['ro.product.model'] || 'Unknown'}\n`, '#d4d4d4');
-                    appendTerminal(` Android: ${props['ro.build.version.release'] || 'Unknown'}\n`, '#d4d4d4');
-                    appendTerminal(` Build: ${props['ro.build.id'] || 'Unknown'}\n\n`, '#d4d4d4');
+                    // Try to get properties via get_properties API
+                    let model = 'Unknown';
+                    let android = 'Unknown';
+                    let build = 'Unknown';
+                    
+                    try {
+                        const props = await queueOperation(async () => {
+                            return await adb.get_properties();
+                        });
+                        
+                        // Properties are returned as a JavaScript object from HashMap via serde_wasm_bindgen
+                        // The object should be directly accessible
+                        if (props && typeof props === 'object') {
+                            // Access properties using bracket notation (HashMap keys with dots)
+                            model = props['ro.product.model'] || props['ro.product.name'] || model;
+                            android = props['ro.build.version.release'] || props['ro.build.version.sdk'] || android;
+                            build = props['ro.build.id'] || props['ro.build.display.id'] || build;
+                        }
+                    } catch (propError) {
+                        console.warn('get_properties failed, trying shell fallback:', propError);
+                    }
+                    
+                    // Fallback: if properties are still unknown, try shell commands
+                    if (model === 'Unknown' || android === 'Unknown' || build === 'Unknown') {
+                        try {
+                            if (model === 'Unknown') {
+                                const modelResult = await queueOperation(async () => {
+                                    return await adb.shell('getprop ro.product.model');
+                                });
+                                model = modelResult.trim() || 'Unknown';
+                            }
+                            if (android === 'Unknown') {
+                                const androidResult = await queueOperation(async () => {
+                                    return await adb.shell('getprop ro.build.version.release');
+                                });
+                                android = androidResult.trim() || 'Unknown';
+                            }
+                            if (build === 'Unknown') {
+                                const buildResult = await queueOperation(async () => {
+                                    return await adb.shell('getprop ro.build.id');
+                                });
+                                build = buildResult.trim() || 'Unknown';
+                            }
+                        } catch (shellError) {
+                            console.warn('Shell fallback failed:', shellError);
+                        }
+                    }
+                    
+                    appendTerminal(`\n Device: ${model}\n`, '#d4d4d4');
+                    appendTerminal(` Android: ${android}\n`, '#d4d4d4');
+                    appendTerminal(` Build: ${build}\n\n`, '#d4d4d4');
                 } catch (e) {
+                    console.error('Error getting device info:', e);
                     appendTerminal('\n Device connected!\n\n', '#d4d4d4');
                 }
                 
@@ -1466,13 +1854,74 @@
         }
 
         async function disconnect() {
+            console.log('[Disconnect] Starting disconnect...');
+            const startTime = performance.now();
+            const btn = document.getElementById('disconnectBtn');
             try {
-                await adb.disconnect();
+                btn.disabled = true;
+                btn.textContent = 'Disconnecting...';
+                
+                // Clear any pending operations in the queue
+                const queueLength = operationQueue.length;
+                console.log(`[Disconnect] Clearing ${queueLength} pending operations from queue`);
+                operationQueue = [];
+                
+                // Wait a bit for any in-progress operations to complete or timeout
+                // Then disconnect
+                console.log('[Disconnect] Waiting 100ms for in-progress operations...');
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                // Disconnect - don't use queue since we're clearing it anyway
+                if (adb) {
+                    console.log('[Disconnect] Calling adb.disconnect()');
+                    try {
+                        await adb.disconnect();
+                        console.log('[Disconnect] adb.disconnect() completed successfully');
+                    } catch (disconnectError) {
+                        console.warn('[Disconnect] Disconnect error (may be already disconnected):', disconnectError);
+                    }
+                } else {
+                    console.log('[Disconnect] adb is null, skipping disconnect call');
+                }
+                
+                // Reset queue state
+                console.log('[Disconnect] Resetting queue state');
+                stopQueueWatchdog();
+                isProcessingQueue = false;
+                queueProcessingStartTime = null;
+                // Reject all pending operations
+                operationQueue.forEach(item => {
+                    try {
+                        if (item.reject) {
+                            item.reject(new Error('Disconnected from device'));
+                        }
+                    } catch (e) {
+                        // Ignore errors when rejecting
+                    }
+                });
+                operationQueue = [];
+                
+                const duration = performance.now() - startTime;
+                console.log(`[Disconnect] Disconnect completed in ${formatDuration(duration)}`);
                 updateStatus('disconnected', 'Disconnected');
                 disableButtons();
                 disableFileManager();
+                
+                // Clear terminal
+                clearTerminal();
+                
             } catch (error) {
+                const duration = performance.now() - startTime;
+                console.error(`[Disconnect] Disconnect failed after ${formatDuration(duration)}:`, error);
                 alert('Failed to disconnect: ' + error);
+                // Still try to reset state
+                isProcessingQueue = false;
+                operationQueue = [];
+                disableButtons();
+                disableFileManager();
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Disconnect';
             }
         }
 
@@ -1502,7 +1951,9 @@
                 status.textContent = '...';
                 status.style.color = '#FF9800';
                 
-                const healthy = await adb.health_check();
+                const healthy = await queueOperation(async () => {
+                    return await adb.health_check();
+                });
                 
                 const time = new Date().toLocaleTimeString();
                 log.style.display = 'block';
@@ -1539,7 +1990,9 @@
                 btn.disabled = true;
                 btn.textContent = 'Cleaning...';
                 
-                const cleaned = await adb.cleanup_stale_streams();
+                const cleaned = await queueOperation(async () => {
+                    return await adb.cleanup_stale_streams();
+                });
                 const total = parseInt(countEl.textContent) + cleaned;
                 countEl.textContent = total;
                 
@@ -1573,7 +2026,9 @@
                 output.style.display = 'block';
                 output.textContent = 'Generating lite bugreport...';
                 
-                const report = await adb.bugreport_lite();
+                const report = await queueOperation(async () => {
+                    return await adb.bugreport_lite();
+                });
                 
                 currentReport = new Blob([report], { type: 'text/plain' });
                 
@@ -1619,7 +2074,9 @@
                     }
                 }, 3000);
                 
-                const reportData = await adb.bugreport();
+                const reportData = await queueOperation(async () => {
+                    return await adb.bugreport();
+                });
                 
                 clearInterval(progressInterval);
                 progressBar.style.width = '100%';
@@ -1679,7 +2136,9 @@
                 output.style.display = 'block';
                 output.textContent = 'Searching for bugreports on device...';
                 
-                const paths = await adb.list_bugreports();
+                const paths = await queueOperation(async () => {
+                    return await adb.list_bugreports();
+                });
                 
                 if (paths.length === 0) {
                     output.innerHTML = '<span style="color: #999;">No bugreports found on device.</span>';
@@ -1781,30 +2240,33 @@
                 
                 // Start timer
                 const timerInterval = setInterval(() => {
-                    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-                    debugTime.textContent = elapsed + 's';
+                    const elapsedMs = Date.now() - startTime;
+                    debugTime.textContent = formatDuration(elapsedMs);
                 }, 100);
                 
                 addLog('Requesting file from device...');
                 
-                const data = await adb.download_bugreport(path);
+                const data = await queueOperation(async () => {
+                    return await adb.download_bugreport(path);
+                });
                 
                 clearInterval(timerInterval);
                 
                 const endTime = Date.now();
-                const duration = ((endTime - startTime) / 1000).toFixed(1);
+                const durationMs = endTime - startTime;
                 const sizeStr = formatBytes(data.byteLength);
-                const speed = formatBytes(data.byteLength / (duration || 1)) + '/s';
+                const durationSeconds = durationMs / 1000;
+                const speed = formatBytes(data.byteLength / (durationSeconds || 1)) + '/s';
                 
                 debugSize.textContent = sizeStr;
-                debugTime.textContent = duration + 's';
+                debugTime.textContent = formatDuration(durationMs);
                 debugSpeed.textContent = speed;
                 progressBar.style.width = '100%';
                 progressBar.textContent = '100%';
                 
                 addLog(`Download complete!`);
                 addLog(`Size: ${sizeStr} (${data.byteLength} bytes)`);
-                addLog(`Duration: ${duration}s`);
+                addLog(`Duration: ${formatDuration(durationMs)}`);
                 addLog(`Average speed: ${speed}`);
                 
                 debugStatus.textContent = 'Saving...';
@@ -1825,7 +2287,7 @@
                 debugStatus.style.color = '#4CAF50';
                 addLog('File saved successfully!');
                 
-                showSuccess(`Downloaded ${filename} (${sizeStr}) in ${duration}s at ${speed}`);
+                showSuccess(`Downloaded ${filename} (${sizeStr}) in ${formatDuration(durationMs)} at ${speed}`);
                 
                 // Hide debug panel after 5 seconds
                 setTimeout(() => {
@@ -1849,26 +2311,50 @@
             const lines = parseInt(document.getElementById('logcatLines').value);
             const output = document.getElementById('logcatOutput');
             const downloadBtn = document.getElementById('downloadLogBtn');
+            const btn = document.getElementById('logcatBtn');
+            
+            console.log(`[Logcat] getLogcat called with ${lines} lines`);
+            const startTime = performance.now();
             
             try {
+                btn.disabled = true;
                 output.textContent = 'Fetching logcat...';
-                const log = await adb.logcat(lines);
+                
+                const log = await queueOperation(async () => {
+                    console.log(`[Logcat] Calling adb.logcat(${lines})`);
+                    const result = await adb.logcat(lines);
+                    console.log(`[Logcat] Received ${result.length} characters of logcat`);
+                    return result;
+                });
+                
+                const duration = performance.now() - startTime;
+                console.log(`[Logcat] Logcat retrieved in ${formatDuration(duration)}`);
                 currentLog = log;
                 output.textContent = log;
                 downloadBtn.disabled = false;
             } catch (error) {
+                const duration = performance.now() - startTime;
+                console.error(`[Logcat] Failed after ${formatDuration(duration)}:`, error);
                 output.textContent = 'Error: ' + error;
                 showError('Failed to get logcat: ' + error);
+            } finally {
+                btn.disabled = false;
             }
         }
 
         async function clearLogcat() {
+            const btn = document.getElementById('logcatClearBtn');
             try {
-                await adb.logcat_clear();
+                btn.disabled = true;
+                await queueOperation(async () => {
+                    return await adb.logcat_clear();
+                });
                 document.getElementById('logcatOutput').textContent = 'Logcat cleared.';
                 showSuccess('Logcat buffer cleared');
             } catch (error) {
                 showError('Failed to clear logcat: ' + error);
+            } finally {
+                btn.disabled = false;
             }
         }
 
@@ -1892,7 +2378,9 @@
                 fileList.innerHTML = 'Loading...';
                 fileList.style.display = 'block';
                 
-                const entries = await adb.list_directory(path);
+                const entries = await queueOperation(async () => {
+                    return await adb.list_directory(path);
+                });
                 
                 fileList.innerHTML = '';
                 entries.forEach(entry => {
@@ -1923,7 +2411,9 @@
                 output.style.display = 'block';
                 output.textContent = 'Getting file info...';
                 
-                const stat = await adb.stat_file(path);
+                const stat = await queueOperation(async () => {
+                    return await adb.stat_file(path);
+                });
                 
                 output.textContent = `File: ${path}
 Type: ${stat.is_directory ? 'Directory' : 'File'}
@@ -1939,7 +2429,9 @@ Modified: ${new Date(stat.mtime * 1000).toLocaleString()}`;
         window.pullFile = async function(path) {
             try {
                 showWarning('Downloading file: ' + path);
-                const data = await adb.pull_file(path);
+                const data = await queueOperation(async () => {
+                    return await adb.pull_file(path);
+                });
                 
                 const blob = new Blob([data]);
                 const url = URL.createObjectURL(blob);
@@ -1959,7 +2451,9 @@ Modified: ${new Date(stat.mtime * 1000).toLocaleString()}`;
             const output = document.getElementById('advancedOutput');
             try {
                 output.textContent = 'Capturing screenshot...';
-                const result = await adb.shell('screencap -p /sdcard/screenshot.png && echo "Screenshot saved to /sdcard/screenshot.png"');
+                const result = await queueOperation(async () => {
+                    return await adb.shell('screencap -p /sdcard/screenshot.png && echo "Screenshot saved to /sdcard/screenshot.png"');
+                });
                 output.textContent = result;
                 showSuccess('Screenshot captured! Pull /sdcard/screenshot.png to download');
             } catch (error) {
@@ -1971,7 +2465,9 @@ Modified: ${new Date(stat.mtime * 1000).toLocaleString()}`;
             const output = document.getElementById('advancedOutput');
             try {
                 output.textContent = 'Dumping system state...';
-                const result = await adb.shell('dumpsys -l');
+                const result = await queueOperation(async () => {
+                    return await adb.shell('dumpsys -l');
+                });
                 output.textContent = result;
             } catch (error) {
                 output.textContent = 'Error: ' + error;
@@ -1982,7 +2478,9 @@ Modified: ${new Date(stat.mtime * 1000).toLocaleString()}`;
             const output = document.getElementById('advancedOutput');
             try {
                 output.textContent = 'Listing packages...';
-                const result = await adb.shell('pm list packages');
+                const result = await queueOperation(async () => {
+                    return await adb.shell('pm list packages');
+                });
                 output.textContent = result;
             } catch (error) {
                 output.textContent = 'Error: ' + error;
@@ -2002,6 +2500,12 @@ Modified: ${new Date(stat.mtime * 1000).toLocaleString()}`;
                 }
             });
             document.getElementById('connectBtn').disabled = true;
+            
+            // Explicitly enable disconnect button
+            const disconnectBtn = document.getElementById('disconnectBtn');
+            if (disconnectBtn) {
+                disconnectBtn.disabled = false;
+            }
             
             // Enable shell
             document.getElementById('shellInput').disabled = false;

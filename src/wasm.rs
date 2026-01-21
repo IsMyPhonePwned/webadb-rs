@@ -69,41 +69,82 @@ impl Adb {
     /// Returns device information as JSON
     #[wasm_bindgen]
     pub async fn connect(&mut self) -> Result<JsValue, JsValue> {
+        log::info!("[WASM] connect() called");
         // Get or create keypair
         let keypair = match storage::load_key() {
             Ok(Some(keypair)) => {
-                log::info!("Loaded existing keypair from storage");
+                log::info!("[WASM] Loaded existing keypair from storage");
                 keypair
             }
-            _ => {
-                log::info!("Generating new keypair");
+            Ok(None) => {
+                log::info!("[WASM] No keypair found, generating new one");
                 let keypair = AdbKeyPair::generate()
-                    .map_err(|e| JsValue::from_str(&e.to_string()))?;
+                    .map_err(|e| {
+                        log::error!("[WASM] Failed to generate keypair: {}", e);
+                        JsValue::from_str(&e.to_string())
+                    })?;
                 
                 storage::save_key(&keypair)
-                    .map_err(|e| JsValue::from_str(&e.to_string()))?;
+                    .map_err(|e| {
+                        log::error!("[WASM] Failed to save keypair: {}", e);
+                        JsValue::from_str(&e.to_string())
+                    })?;
+                
+                log::info!("[WASM] New keypair generated and saved");
+                keypair
+            }
+            Err(e) => {
+                log::warn!("[WASM] Error loading keypair, generating new one: {}", e);
+                let keypair = AdbKeyPair::generate()
+                    .map_err(|e| {
+                        log::error!("[WASM] Failed to generate keypair: {}", e);
+                        JsValue::from_str(&e.to_string())
+                    })?;
+                
+                storage::save_key(&keypair)
+                    .map_err(|e| {
+                        log::error!("[WASM] Failed to save keypair: {}", e);
+                        JsValue::from_str(&e.to_string())
+                    })?;
                 
                 keypair
             }
         };
 
         // Request device from user
+        log::info!("[WASM] Requesting USB device from user");
         let transport = WebUsbTransport::request_device()
             .await
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+            .map_err(|e| {
+                log::error!("[WASM] Failed to request device: {}", e);
+                JsValue::from_str(&e.to_string())
+            })?;
 
         let device_info = transport.device_info();
+        log::info!("[WASM] Device selected: vendor_id={}, product_id={}, serial={:?}", 
+                   device_info.vendor_id, 
+                   device_info.product_id,
+                   device_info.serial_number);
 
         // Create and connect client
+        log::info!("[WASM] Creating ADB client");
         let mut client = AdbClient::new(transport, keypair)
             .await
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+            .map_err(|e| {
+                log::error!("[WASM] Failed to create ADB client: {}", e);
+                JsValue::from_str(&e.to_string())
+            })?;
 
+        log::info!("[WASM] Connecting to device");
         client
             .connect()
             .await
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+            .map_err(|e| {
+                log::error!("[WASM] Failed to connect: {}", e);
+                JsValue::from_str(&e.to_string())
+            })?;
 
+        log::info!("[WASM] Connection successful");
         self.client = Some(client);
 
         // Return device info
@@ -115,37 +156,65 @@ impl Adb {
             serial: device_info.serial_number,
         };
 
+        log::info!("[WASM] connect() completed successfully");
         Ok(serde_wasm_bindgen::to_value(&info)?)
     }
 
     /// Execute a shell command
     #[wasm_bindgen]
     pub async fn shell(&mut self, command: String) -> Result<String, JsValue> {
+        log::info!("[WASM] shell() called with command: {}", command);
         let client = self
             .client
             .as_mut()
-            .ok_or_else(|| JsValue::from_str("Not connected"))?;
+            .ok_or_else(|| {
+                log::error!("[WASM] shell() called but not connected");
+                JsValue::from_str("Not connected")
+            })?;
 
-        client
+        log::debug!("[WASM] Executing shell command via client");
+        let result = client
             .shell(&command)
             .await
-            .map_err(|e| JsValue::from_str(&e.to_string()))
+            .map_err(|e| {
+                log::error!("[WASM] shell() failed: {}", e);
+                JsValue::from_str(&e.to_string())
+            })?;
+        
+        log::info!("[WASM] shell() completed, result length: {} chars", result.len());
+        Ok(result)
     }
 
     /// Get device properties
     #[wasm_bindgen]
     pub async fn get_properties(&mut self) -> Result<JsValue, JsValue> {
+        log::info!("[WASM] get_properties() called");
         let client = self
             .client
             .as_mut()
-            .ok_or_else(|| JsValue::from_str("Not connected"))?;
+            .ok_or_else(|| {
+                log::error!("[WASM] get_properties() called but not connected");
+                JsValue::from_str("Not connected")
+            })?;
 
+        log::debug!("[WASM] Fetching properties from client");
         let props = client
             .get_properties()
             .await
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+            .map_err(|e| {
+                log::error!("[WASM] get_properties() failed: {}", e);
+                JsValue::from_str(&e.to_string())
+            })?;
 
-        Ok(serde_wasm_bindgen::to_value(&props)?)
+        log::info!("[WASM] get_properties() retrieved {} properties", props.len());
+        let js_value = serde_wasm_bindgen::to_value(&props)
+            .map_err(|e| {
+                log::error!("[WASM] Failed to serialize properties: {}", e);
+                JsValue::from_str(&format!("Serialization error: {}", e))
+            })?;
+        
+        log::debug!("[WASM] get_properties() completed successfully");
+        Ok(js_value)
     }
 
     /// Reboot the device
@@ -166,13 +235,22 @@ impl Adb {
     /// Disconnect from device
     #[wasm_bindgen]
     pub async fn disconnect(&mut self) -> Result<(), JsValue> {
+        log::info!("[WASM] disconnect() called");
         if let Some(client) = self.client.as_mut() {
+            log::debug!("[WASM] Disconnecting client");
             client
                 .disconnect()
                 .await
-                .map_err(|e| JsValue::from_str(&e.to_string()))?;
+                .map_err(|e| {
+                    log::error!("[WASM] disconnect() failed: {}", e);
+                    JsValue::from_str(&e.to_string())
+                })?;
+            log::info!("[WASM] Client disconnected successfully");
+        } else {
+            log::warn!("[WASM] disconnect() called but no client exists");
         }
         self.client = None;
+        log::info!("[WASM] disconnect() completed");
         Ok(())
     }
 
@@ -186,16 +264,27 @@ impl Adb {
     /// Returns the bugreport as a Uint8Array
     #[wasm_bindgen]
     pub async fn bugreport(&mut self) -> Result<js_sys::Uint8Array, JsValue> {
+        log::info!("[WASM] bugreport() called (full bugreport)");
         let client = self
             .client
             .as_mut()
-            .ok_or_else(|| JsValue::from_str("Not connected"))?;
+            .ok_or_else(|| {
+                log::error!("[WASM] bugreport() called but not connected");
+                JsValue::from_str("Not connected")
+            })?;
 
+        log::info!("[WASM] Generating full bugreport (this may take several minutes)");
         let data = client
             .bugreport()
             .await
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+            .map_err(|e| {
+                log::error!("[WASM] bugreport() failed: {}", e);
+                JsValue::from_str(&e.to_string())
+            })?;
 
+        log::info!("[WASM] bugreport() completed, size: {} bytes ({:.2} MB)", 
+                   data.len(), 
+                   data.len() as f64 / 1_048_576.0);
         Ok(js_sys::Uint8Array::from(&data[..]))
     }
 
@@ -203,15 +292,26 @@ impl Adb {
     /// Returns a text summary
     #[wasm_bindgen]
     pub async fn bugreport_lite(&mut self) -> Result<String, JsValue> {
+        log::info!("[WASM] bugreport_lite() called");
         let client = self
             .client
             .as_mut()
-            .ok_or_else(|| JsValue::from_str("Not connected"))?;
+            .ok_or_else(|| {
+                log::error!("[WASM] bugreport_lite() called but not connected");
+                JsValue::from_str("Not connected")
+            })?;
 
-        client
+        log::debug!("[WASM] Generating lite bugreport");
+        let result = client
             .bugreport_lite()
             .await
-            .map_err(|e| JsValue::from_str(&e.to_string()))
+            .map_err(|e| {
+                log::error!("[WASM] bugreport_lite() failed: {}", e);
+                JsValue::from_str(&e.to_string())
+            })?;
+        
+        log::info!("[WASM] bugreport_lite() completed, result length: {} chars", result.len());
+        Ok(result)
     }
 
     /// List available bugreports on device
@@ -251,15 +351,26 @@ impl Adb {
     /// Get logcat output (last n lines)
     #[wasm_bindgen]
     pub async fn logcat(&mut self, lines: u32) -> Result<String, JsValue> {
+        log::info!("[WASM] logcat() called with lines={}", lines);
         let client = self
             .client
             .as_mut()
-            .ok_or_else(|| JsValue::from_str("Not connected"))?;
+            .ok_or_else(|| {
+                log::error!("[WASM] logcat() called but not connected");
+                JsValue::from_str("Not connected")
+            })?;
 
-        client
+        log::debug!("[WASM] Fetching logcat from client");
+        let result = client
             .logcat(lines)
             .await
-            .map_err(|e| JsValue::from_str(&e.to_string()))
+            .map_err(|e| {
+                log::error!("[WASM] logcat() failed: {}", e);
+                JsValue::from_str(&e.to_string())
+            })?;
+        
+        log::info!("[WASM] logcat() completed, result length: {} chars", result.len());
+        Ok(result)
     }
 
     /// Clear logcat buffer
@@ -280,31 +391,50 @@ impl Adb {
     /// Returns the file data as a Uint8Array
     #[wasm_bindgen]
     pub async fn pull_file(&mut self, path: String) -> Result<js_sys::Uint8Array, JsValue> {
+        log::info!("[WASM] pull_file() called with path: {}", path);
         let client = self
             .client
             .as_mut()
-            .ok_or_else(|| JsValue::from_str("Not connected"))?;
+            .ok_or_else(|| {
+                log::error!("[WASM] pull_file() called but not connected");
+                JsValue::from_str("Not connected")
+            })?;
 
+        log::debug!("[WASM] Pulling file via client");
         let data = client
             .pull_file(&path)
             .await
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+            .map_err(|e| {
+                log::error!("[WASM] pull_file() failed: {}", e);
+                JsValue::from_str(&e.to_string())
+            })?;
 
+        log::info!("[WASM] pull_file() completed, size: {} bytes", data.len());
         Ok(js_sys::Uint8Array::from(&data[..]))
     }
 
     /// Get file statistics
     #[wasm_bindgen]
     pub async fn stat_file(&mut self, path: String) -> Result<JsValue, JsValue> {
+        log::info!("[WASM] stat_file() called with path: {}", path);
         let client = self
             .client
             .as_mut()
-            .ok_or_else(|| JsValue::from_str("Not connected"))?;
+            .ok_or_else(|| {
+                log::error!("[WASM] stat_file() called but not connected");
+                JsValue::from_str("Not connected")
+            })?;
 
+        log::debug!("[WASM] Getting file stats via client");
         let stat = client
             .stat_file(&path)
             .await
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+            .map_err(|e| {
+                log::error!("[WASM] stat_file() failed: {}", e);
+                JsValue::from_str(&e.to_string())
+            })?;
+        
+        log::info!("[WASM] stat_file() completed, size: {} bytes, is_dir: {}", stat.size, stat.is_directory());
 
         #[derive(Serialize)]
         struct FileStatJs {
@@ -329,15 +459,25 @@ impl Adb {
     /// List directory contents
     #[wasm_bindgen]
     pub async fn list_directory(&mut self, path: String) -> Result<JsValue, JsValue> {
+        log::info!("[WASM] list_directory() called with path: {}", path);
         let client = self
             .client
             .as_mut()
-            .ok_or_else(|| JsValue::from_str("Not connected"))?;
+            .ok_or_else(|| {
+                log::error!("[WASM] list_directory() called but not connected");
+                JsValue::from_str("Not connected")
+            })?;
 
+        log::debug!("[WASM] Listing directory via client");
         let entries = client
             .list_directory(&path)
             .await
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+            .map_err(|e| {
+                log::error!("[WASM] list_directory() failed: {}", e);
+                JsValue::from_str(&e.to_string())
+            })?;
+        
+        log::info!("[WASM] list_directory() found {} entries", entries.len());
 
         #[derive(Serialize)]
         struct DirEntryJs {
@@ -380,21 +520,39 @@ impl Adb {
     /// Cleanup stale streams (>30 seconds old)
     #[wasm_bindgen]
     pub async fn cleanup_stale_streams(&mut self) -> Result<usize, JsValue> {
+        log::info!("[WASM] cleanup_stale_streams() called");
         let client = self.client.as_mut()
-            .ok_or_else(|| JsValue::from_str("Not connected"))?;
+            .ok_or_else(|| {
+                log::error!("[WASM] cleanup_stale_streams() called but not connected");
+                JsValue::from_str("Not connected")
+            })?;
         
-        Ok(client.cleanup_stale_streams().await)
+        log::debug!("[WASM] Cleaning up stale streams via client");
+        let cleaned = client.cleanup_stale_streams().await;
+        log::info!("[WASM] cleanup_stale_streams() completed, cleaned {} streams", cleaned);
+        Ok(cleaned)
     }
     
     /// Check device health
     #[wasm_bindgen]
     pub async fn health_check(&mut self) -> Result<bool, JsValue> {
+        log::info!("[WASM] health_check() called");
         let client = self.client.as_mut()
-            .ok_or_else(|| JsValue::from_str("Not connected"))?;
+            .ok_or_else(|| {
+                log::error!("[WASM] health_check() called but not connected");
+                JsValue::from_str("Not connected")
+            })?;
         
-        client.health_check()
+        log::debug!("[WASM] Performing health check via client");
+        let healthy = client.health_check()
             .await
-            .map_err(|e| JsValue::from_str(&e.to_string()))
+            .map_err(|e| {
+                log::error!("[WASM] health_check() failed: {}", e);
+                JsValue::from_str(&e.to_string())
+            })?;
+        
+        log::info!("[WASM] health_check() completed, healthy: {}", healthy);
+        Ok(healthy)
     }
     
     /// Execute shell command with timeout
@@ -411,45 +569,89 @@ impl Adb {
     /// Push (upload) a file to device
     #[wasm_bindgen]
     pub async fn push_file(&mut self, data: Vec<u8>, remote_path: String) -> Result<(), JsValue> {
+        log::info!("[WASM] push_file() called with path: {}, size: {} bytes", remote_path, data.len());
         let client = self.client.as_mut()
-            .ok_or_else(|| JsValue::from_str("Not connected"))?;
+            .ok_or_else(|| {
+                log::error!("[WASM] push_file() called but not connected");
+                JsValue::from_str("Not connected")
+            })?;
         
+        log::debug!("[WASM] Pushing file via client");
         client.push_file(&data, &remote_path)
             .await
-            .map_err(|e| JsValue::from_str(&e.to_string()))
+            .map_err(|e| {
+                log::error!("[WASM] push_file() failed: {}", e);
+                JsValue::from_str(&e.to_string())
+            })?;
+        
+        log::info!("[WASM] push_file() completed successfully");
+        Ok(())
     }
     
     /// Delete a file or directory
     #[wasm_bindgen]
     pub async fn delete_path(&mut self, remote_path: String) -> Result<(), JsValue> {
+        log::info!("[WASM] delete_path() called with path: {}", remote_path);
         let client = self.client.as_mut()
-            .ok_or_else(|| JsValue::from_str("Not connected"))?;
+            .ok_or_else(|| {
+                log::error!("[WASM] delete_path() called but not connected");
+                JsValue::from_str("Not connected")
+            })?;
         
+        log::debug!("[WASM] Deleting path via client");
         client.delete_path(&remote_path)
             .await
-            .map_err(|e| JsValue::from_str(&e.to_string()))
+            .map_err(|e| {
+                log::error!("[WASM] delete_path() failed: {}", e);
+                JsValue::from_str(&e.to_string())
+            })?;
+        
+        log::info!("[WASM] delete_path() completed successfully");
+        Ok(())
     }
     
     /// Rename or move a file/directory
     #[wasm_bindgen]
     pub async fn rename_file(&mut self, old_path: String, new_path: String) -> Result<(), JsValue> {
+        log::info!("[WASM] rename_file() called: {} -> {}", old_path, new_path);
         let client = self.client.as_mut()
-            .ok_or_else(|| JsValue::from_str("Not connected"))?;
+            .ok_or_else(|| {
+                log::error!("[WASM] rename_file() called but not connected");
+                JsValue::from_str("Not connected")
+            })?;
         
+        log::debug!("[WASM] Renaming file via client");
         client.rename_file(&old_path, &new_path)
             .await
-            .map_err(|e| JsValue::from_str(&e.to_string()))
+            .map_err(|e| {
+                log::error!("[WASM] rename_file() failed: {}", e);
+                JsValue::from_str(&e.to_string())
+            })?;
+        
+        log::info!("[WASM] rename_file() completed successfully");
+        Ok(())
     }
     
     /// Create a directory (with parent directories)
     #[wasm_bindgen]
     pub async fn create_directory(&mut self, remote_path: String) -> Result<(), JsValue> {
+        log::info!("[WASM] create_directory() called with path: {}", remote_path);
         let client = self.client.as_mut()
-            .ok_or_else(|| JsValue::from_str("Not connected"))?;
+            .ok_or_else(|| {
+                log::error!("[WASM] create_directory() called but not connected");
+                JsValue::from_str("Not connected")
+            })?;
         
+        log::debug!("[WASM] Creating directory via client");
         client.create_directory(&remote_path)
             .await
-            .map_err(|e| JsValue::from_str(&e.to_string()))
+            .map_err(|e| {
+                log::error!("[WASM] create_directory() failed: {}", e);
+                JsValue::from_str(&e.to_string())
+            })?;
+        
+        log::info!("[WASM] create_directory() completed successfully");
+        Ok(())
     }
 
 
@@ -463,6 +665,7 @@ impl Adb {
         };
         use bugreport_extractor_library::zip_utils;
         use std::sync::Arc;
+        use std::io::Read;
         
         log::info!("🔍 [ANALYZE] Starting bugreport analysis");
         log::info!("📊 [ANALYZE] Data size: {} bytes ({:.2} MB)", data.len(), data.len() as f64 / 1_048_576.0);
@@ -471,21 +674,52 @@ impl Adb {
 
         let data_u8 = data.as_slice();
         let file_content: Arc<[u8]> = if zip_utils::is_zip_file(data_u8) {
-            web_sys::console::log_1(&"Detected ZIP file, extracting dumpstate.txt...".into());
+            log::info!("📦 [ANALYZE] Detected ZIP file, extracting dumpstate...");
+            web_sys::console::log_1(&"Detected ZIP file, extracting dumpstate...".into());
             
-            let extracted = zip_utils::extract_dumpstate_from_zip_bytes(data_u8)
-                .map_err(|e| JsValue::from_str(&format!("ZIP extraction failed: {}", e)))?;
-            
-            web_sys::console::log_1(&format!(
-                "Extracted dumpstate.txt: {:.2} MB",
-                extracted.len() as f64 / 1_048_576.0
-            ).into());
-            
-            Arc::from(extracted)
+            // Always use manual extraction to ensure we get the correct file
+            // The library function may pick wrong files (e.g., setupwizard.txt in dump directories)
+            log::info!("🔍 [ANALYZE] Using manual extraction to find files starting with 'dumpstate'...");
+            match manual_extract_dumpstate(data_u8) {
+                Ok(extracted) => {
+                    if extracted.is_empty() {
+                        log::error!("❌ [ANALYZE] Manual extraction returned empty dumpstate!");
+                        return Err(JsValue::from_str(
+                            "ZIP extraction returned empty dumpstate. No file found with filename starting with 'dumpstate'. Please check the browser console for details."
+                        ));
+                    }
+                    
+                    log::info!(
+                        "✅ [ANALYZE] Extracted dumpstate: {:.2} MB ({} bytes)",
+                        extracted.len() as f64 / 1_048_576.0,
+                        extracted.len()
+                    );
+                    web_sys::console::log_1(&format!(
+                        "Extracted dumpstate: {:.2} MB",
+                        extracted.len() as f64 / 1_048_576.0
+                    ).into());
+                    
+                    Arc::from(extracted)
+                }
+                Err(e) => {
+                    let error_msg = format!("{}", e);
+                    log::error!("❌ [ANALYZE] Manual ZIP extraction failed: {}", error_msg);
+                    log::error!("❌ [ANALYZE] Common causes:");
+                    log::error!("  - No file found with filename starting with 'dumpstate'");
+                    log::error!("  - ZIP file is corrupted or incomplete");
+                    log::error!("  - Different ZIP structure than expected");
+                    log::error!("❌ [ANALYZE] Suggestion: Extract the ZIP manually and upload dumpstate.txt directly");
+                    return Err(JsValue::from_str(&format!(
+                        "ZIP extraction failed: {}. Please extract the ZIP manually and upload dumpstate.txt directly.",
+                        error_msg
+                    )));
+                }
+            }
         } else {
             log::info!(
-                "Loading plain text file: {:.2} MB",
-                data.len() as f64 / 1_048_576.0);
+                "📄 [ANALYZE] Loading plain text file: {:.2} MB",
+                data.len() as f64 / 1_048_576.0
+            );
             
             Arc::from(data)
         };
@@ -1941,6 +2175,70 @@ pub fn has_keypair() -> Result<bool, JsValue> {
         Ok(None) => Ok(false),
         Err(e) => Err(JsValue::from_str(&e.to_string())),
     }
+}
+
+/// Manual extraction of dumpstate from ZIP (fallback when library function fails)
+#[allow(dead_code)] // Used conditionally in error handler
+fn manual_extract_dumpstate(zip_data: &[u8]) -> Result<Vec<u8>, String> {
+    use std::io::{Cursor, Read};
+    use std::path::Path;
+    
+    let cursor = Cursor::new(zip_data);
+    let mut archive = zip::ZipArchive::new(cursor)
+        .map_err(|e| format!("Failed to open ZIP archive: {}", e))?;
+    
+    // Collect all files whose filename starts with "dumpstate"
+    let mut candidates: Vec<(String, u64)> = Vec::new();
+    for i in 0..archive.len() {
+        if let Ok(file) = archive.by_index(i) {
+            let full_path = file.name().to_string();
+            
+            // Skip directories
+            if full_path.ends_with('/') {
+                continue;
+            }
+            
+            // Get just the filename (not the path)
+            let path = Path::new(&full_path);
+            let file_name = path.file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("");
+            let file_name_lower = file_name.to_lowercase();
+            
+            // ONLY match files whose filename starts with "dumpstate"
+            if file_name_lower.starts_with("dumpstate") {
+                let size = file.size();
+                if size > 1000 {  // Only consider files larger than 1KB
+                    let full_path_clone = full_path.clone();
+                    candidates.push((full_path, size));
+                    log::info!("🔍 [MANUAL EXTRACT] Found dumpstate candidate: {} ({} bytes)", full_path_clone, size);
+                }
+            }
+        }
+    }
+    
+    if candidates.is_empty() {
+        return Err("No file found with filename starting with 'dumpstate'".to_string());
+    }
+    
+    // Sort by size (largest first) - prefer larger dumpstate files
+    candidates.sort_by(|a, b| b.1.cmp(&a.1));
+    
+    log::info!("🔍 [MANUAL EXTRACT] Found {} dumpstate file(s), trying largest first", candidates.len());
+    
+    // Try the largest file first (most likely to be the main dumpstate)
+    for (name, size) in candidates.iter() {
+        log::info!("🔍 [MANUAL EXTRACT] Trying: {} ({} bytes)", name, size);
+        if let Ok(mut file) = archive.by_name(name) {
+            let mut contents = Vec::new();
+            if file.read_to_end(&mut contents).is_ok() && !contents.is_empty() {
+                log::info!("✅ [MANUAL EXTRACT] Successfully extracted: {}", name);
+                return Ok(contents);
+            }
+        }
+    }
+    
+    Err("Found dumpstate files but failed to extract them".to_string())
 }
 
 /// Extract kernel version from kernel string

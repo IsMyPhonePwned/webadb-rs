@@ -117,12 +117,31 @@ impl WebUsbTransport {
         let endpoint_out = endpoint_out
             .ok_or_else(|| AdbError::UsbError("OUT endpoint not found".to_string()))?;
 
+        // Try to release interface first in case it's already claimed
+        // This is safe to do - if not claimed, it will just fail silently
+        let release_promise = device.release_interface(interface_number);
+        let _ = JsFuture::from(release_promise).await;
+        // Ignore errors - interface might not be claimed yet
+
         // Claim the interface
         let promise = device.claim_interface(interface_number);
         
         JsFuture::from(promise)
             .await
-            .map_err(|e| AdbError::UsbError(format!("Failed to claim interface: {:?}", e)))?;
+            .map_err(|e| {
+                let error_str = format!("{:?}", e);
+                let error_msg = if error_str.contains("already claimed") || error_str.contains("claimInterface") {
+                    format!(
+                        "Failed to claim USB interface. The interface may be in use by another application. \
+                        Please: 1) Close any other ADB tools (adb, Android Studio, etc.), \
+                        2) Disconnect and reconnect your device, \
+                        3) Refresh this page and try again. Error: {:?}", e
+                    )
+                } else {
+                    format!("Failed to claim interface: {:?}", e)
+                };
+                AdbError::UsbError(error_msg)
+            })?;
 
         Ok(Self {
             device,

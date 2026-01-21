@@ -61,6 +61,9 @@ log = "0.4"
 console_error_panic_hook = "0.1"
 console_log = "1.0"
 
+# ZIP file handling (for manual extraction fallback)
+zip = { version = "0.6", default-features = false, features = ["deflate"] }
+
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
 

@@ -333,6 +333,39 @@
             100% { opacity: 1; }
         }
 
+        /* Loading Spinner */
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+            margin: 2rem 0;
+        }
+
+        .loading-spinner.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid var(--bg-secondary);
+            border-top: 4px solid var(--accent);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: var(--text-primary);
+            font-size: 1rem;
+            margin-top: 0.5rem;
+        }
+
         .tabs {
             display: flex;
             gap: 0.5rem;
@@ -824,6 +857,10 @@
 
         <div id="status" class="status"></div>
         <div id="progress" class="progress"><div class="progress-bar"></div></div>
+        <div id="loading-spinner" class="loading-spinner">
+            <div class="spinner"></div>
+            <div class="loading-text">Analyzing bugreport... Please wait</div>
+        </div>
 
         <!-- Method Selection -->
         <div class="section">
@@ -1381,6 +1418,19 @@
             document.getElementById('progress').classList.remove('show');
         }
 
+        function showLoadingSpinner(text = 'Analyzing bugreport... Please wait') {
+            const spinner = document.getElementById('loading-spinner');
+            const loadingText = spinner.querySelector('.loading-text');
+            if (loadingText) {
+                loadingText.textContent = text;
+            }
+            spinner.classList.add('show');
+        }
+
+        function hideLoadingSpinner() {
+            document.getElementById('loading-spinner').classList.remove('show');
+        }
+
         function showResults() {
             document.getElementById('results').classList.add('show');
         }
@@ -1575,6 +1625,26 @@
             return `${ms}ms`;
         }
 
+        // Helper function to format duration in human-readable format (accepts milliseconds)
+        function formatDuration(ms) {
+            if (ms < 1000) {
+                return `${ms.toFixed(2)}ms`;
+            }
+            const seconds = Math.floor(ms / 1000);
+            const milliseconds = Math.floor(ms % 1000);
+            if (seconds < 60) {
+                return `${seconds}s ${milliseconds}ms (${ms.toFixed(2)}ms)`;
+            }
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            return `${minutes}m ${remainingSeconds}s ${milliseconds}ms (${ms.toFixed(2)}ms)`;
+        }
+
+        // Helper function to format duration from seconds (for compatibility)
+        function formatDurationFromSeconds(seconds) {
+            return formatDuration(seconds * 1000);
+        }
+
         // Display results
         function displayResults(data) {
             currentResults = data;
@@ -1679,7 +1749,7 @@
                     timestamp: pkg.timestamp || '',
                     versionCode: pkg.version_code || null,
                     success: pkg.success !== undefined ? pkg.success : false,
-                    duration: pkg.duration_seconds ? pkg.duration_seconds.toFixed(1) : null
+                    duration: pkg.duration_seconds ? formatDuration(pkg.duration_seconds * 1000) : null
                 }));
             }
 
@@ -1709,7 +1779,7 @@
                             <div><span style="color: var(--text-secondary); margin-right: 0.25rem;">📅 Installed:</span><span style="color: var(--text-primary); font-weight: 500;">${formatDate(pkg.timestamp)}</span></div>
                             <div><span style="color: var(--text-secondary); margin-right: 0.25rem;">📦 Installer:</span><span style="color: var(--text-primary); font-weight: 500;">${installerName}</span></div>
                             <div><span style="color: var(--text-secondary); margin-right: 0.25rem;">🔢 Version:</span><span style="color: var(--text-primary); font-weight: 500;">${versionText}</span></div>
-                            ${pkg.duration ? `<div><span style="color: var(--text-secondary); margin-right: 0.25rem;">⏱️ Duration:</span><span style="color: var(--text-primary); font-weight: 500;">${pkg.duration}s</span></div>` : ''}
+                            ${pkg.duration ? `<div><span style="color: var(--text-secondary); margin-right: 0.25rem;">⏱️ Duration:</span><span style="color: var(--text-primary); font-weight: 500;">${pkg.duration}</span></div>` : ''}
                         </div>
                     </div>
                 `;
@@ -2431,7 +2501,8 @@
                             if (install.timestamp && log.timestamp) {
                                 const start = new Date(install.timestamp);
                                 const end = new Date(log.timestamp);
-                                duration = ((end - start) / 1000).toFixed(1);
+                                const durationMs = end - start;
+                                duration = durationMs > 0 ? formatDuration(durationMs) : null;
                             }
 
                             const isSuccess = log.message.includes('result of install: 1');
@@ -2521,7 +2592,7 @@
 
                 const startTime = Date.now();
                 const bugreports = await adb.list_bugreports();
-                const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+                const durationMs = Date.now() - startTime;
                 
                 clearTimeout(timeoutWarning);
                 listingStatus.classList.add('hidden');
@@ -2537,7 +2608,7 @@
                         select.appendChild(option);
                     });
                     
-                    showStatus(`✓ Found ${bugreports.length} bugreport(s) on device in ${duration}s - select one to analyze`, 'success');
+                    showStatus(`✓ Found ${bugreports.length} bugreport(s) on device in ${formatDuration(durationMs)} - select one to analyze`, 'success');
                     document.getElementById('btn-refresh-list').classList.remove('hidden');
                 } else {
                     showStatus('⚠️ No bugreports found on device. Try generating a new one or use the "Generate New" tab.', 'error');
@@ -2640,7 +2711,7 @@
 
                 const startTime = Date.now();
                 const bugreports = await adb.list_bugreports();
-                const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+                const durationMs = Date.now() - startTime;
                 
                 clearTimeout(timeoutWarning);
                 listingStatus.classList.add('hidden');
@@ -2656,7 +2727,7 @@
                         select.appendChild(option);
                     });
                     
-                    showStatus(`✓ Refreshed - found ${bugreports.length} bugreport(s) in ${duration}s`, 'success');
+                    showStatus(`✓ Refreshed - found ${bugreports.length} bugreport(s) in ${formatDuration(durationMs)}`, 'success');
                 } else {
                     showStatus('⚠️ No bugreports found on device', 'error');
                 }
@@ -2771,27 +2842,30 @@
             try {
                 showStatus('📥 Downloading bugreport from device...', 'info');
                 showProgress();
+                showLoadingSpinner('Downloading bugreport from device...');
                 hideResults();
 
                 const startDownload = Date.now();
                 const bugreportData = await adb.download_bugreport(selectedBugreportPath);
                 
-                const downloadDuration = ((Date.now() - startDownload) / 1000).toFixed(1);
+                const downloadDurationMs = Date.now() - startDownload;
                 const sizeMB = (bugreportData.length / 1024 / 1024).toFixed(2);
                 
-                showStatus(`✓ Downloaded ${sizeMB} MB! Calculating hash...`, 'info');
+                showStatus(`✓ Downloaded ${sizeMB} MB in ${formatDuration(downloadDurationMs)}! Calculating hash...`, 'info');
+                showLoadingSpinner('Calculating file hash...');
                 
                 const startHash = Date.now();
                 const hashHex = await calculateHash(bugreportData);
-                const hashDuration = ((Date.now() - startHash) / 1000).toFixed(1);
+                const hashDurationMs = Date.now() - startHash;
                 
-                showStatus(`✓ Hash calculated! Now analyzing...`, 'info');
+                showStatus(`✓ Hash calculated in ${formatDuration(hashDurationMs)}! Now analyzing...`, 'info');
+                showLoadingSpinner('Analyzing bugreport... This may take a minute');
                 
                 const startAnalysis = Date.now();
                 const result = await adb.analyze_bugreport(bugreportData);
                 
-                const analysisDuration = ((Date.now() - startAnalysis) / 1000).toFixed(1);
-                const totalDuration = ((Date.now() - startDownload) / 1000).toFixed(1);
+                const analysisDurationMs = Date.now() - startAnalysis;
+                const totalDurationMs = Date.now() - startDownload;
                 
                 result.file_info = {
                     path: selectedBugreportPath,
@@ -2802,8 +2876,9 @@
                 
                 result.analysis_timestamp = new Date().toISOString();
                 
-                showStatus(`✓ Analysis complete! (${totalDuration}s total)`, 'success');
+                showStatus(`✓ Analysis complete! (Total: ${formatDuration(totalDurationMs)})`, 'success');
                 hideProgress();
+                hideLoadingSpinner();
                 displayResults(result);
             } catch (error) {
                 console.error('[ANALYZE-DEVICE] Analysis error:', error);
@@ -2821,6 +2896,7 @@
                 
                 showStatus(errorMessage, 'error');
                 hideProgress();
+                hideLoadingSpinner();
             }
         }
 
@@ -2898,16 +2974,19 @@
                 
                 showStatus(`Reading file (${fileSizeMB} MB)...`, 'info');
                 showProgress();
+                showLoadingSpinner('Reading file...');
                 hideResults();
 
                 const arrayBuffer = await uploadedFile.arrayBuffer();
                 const uint8Array = new Uint8Array(arrayBuffer);
 
                 showStatus(`Calculating hash...`, 'info');
+                showLoadingSpinner('Calculating file hash...');
                 
                 const hashHex = await calculateHash(uint8Array);
 
                 showStatus(`Analyzing bugreport (${fileSizeMB} MB)...`, 'info');
+                showLoadingSpinner('Analyzing bugreport... This may take a minute');
 
                 if (!adb) {
                     adb = new Adb();
@@ -2927,6 +3006,7 @@
                 
                 showStatus('✓ Analysis complete!', 'success');
                 hideProgress();
+                hideLoadingSpinner();
                 displayResults(result);
             } catch (error) {
                 console.error('Analysis error:', error);
@@ -2937,6 +3017,7 @@
                     showStatus('Failed to analyze: ' + error, 'error');
                 }
                 hideProgress();
+                hideLoadingSpinner();
             }
         }
     </script>
