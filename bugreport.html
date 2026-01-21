@@ -547,6 +547,17 @@
             font-weight: 600;
         }
 
+        .service-badge {
+            display: inline-block;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin: 0.25rem 0.25rem 0.25rem 0;
+            border: 1px solid var(--border);
+        }
+
         .package-detail-content {
             display: flex;
             flex-direction: column;
@@ -1008,10 +1019,6 @@
                             <div class="result-item-label">Unique Packages</div>
                             <div class="result-item-value" id="stats-packages">-</div>
                         </div>
-                        <div class="result-item">
-                            <div class="result-item-label">Security Analysis</div>
-                            <div class="result-item-value" id="stats-security">-</div>
-                        </div>
                     </div>
                 </div>
 
@@ -1187,6 +1194,23 @@
                     </div>
                 </div>
 
+                <!-- Bluetooth Information -->
+                <div class="result-card" id="bluetooth-card" style="display: none;">
+                    <div class="section-header">
+                        <h3>📶 Bluetooth</h3>
+                        <span class="count-badge" id="bluetooth-devices-count-badge">0</span>
+                    </div>
+                    <button class="section-toggle collapsed" onclick="toggleSection('bluetooth')">▼</button>
+                    <div class="section-content collapsed" id="bluetooth-content">
+                        <div id="bluetooth-adapter-info"></div>
+                        <div class="search-box" style="margin-top: 1rem;">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="bluetooth-search-input" placeholder="Search devices by name, MAC address, or services...">
+                        </div>
+                        <div id="bluetooth-devices-list"></div>
+                    </div>
+                </div>
+
                 <!-- Full Data (JSON) -->
                 <div class="result-card">
                     <div class="section-header">
@@ -1267,7 +1291,6 @@
                 battery_info: currentResults.battery_info,
                 process_count: currentResults.process_count,
                 package_count: currentResults.package_count,
-                has_security_analysis: currentResults.has_security_analysis,
                 packages: currentResults.packages,
                 processes: currentResults.processes,
                 battery_apps: currentResults.battery_apps,
@@ -1669,7 +1692,6 @@
             // Stats
             document.getElementById('stats-processes').textContent = data.process_count || 0;
             document.getElementById('stats-packages').textContent = data.package_count || 0;
-            document.getElementById('stats-security').textContent = data.has_security_analysis ? '✓ Available' : '✗ None';
 
             // File info
             const fileInfoCard = document.getElementById('file-info-card');
@@ -1705,6 +1727,9 @@
 
             // Network sockets
             displayNetworkSockets(data);
+
+            // Bluetooth info
+            displayBluetoothInfo(data);
 
             // JSON output
             document.getElementById('json-output').textContent = JSON.stringify(data, null, 2);
@@ -2315,6 +2340,166 @@
                     const networkName = item.getAttribute('data-network-name') || '';
                     
                     if (networkType.includes(query) || networkName.includes(query)) {
+                        item.style.display = 'block';
+                        visibleCount++;
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            });
+        }
+
+        function displayBluetoothInfo(data) {
+            const bluetoothCard = document.getElementById('bluetooth-card');
+            const bluetoothAdapterInfoEl = document.getElementById('bluetooth-adapter-info');
+            const bluetoothDevicesListEl = document.getElementById('bluetooth-devices-list');
+            const countBadge = document.getElementById('bluetooth-devices-count-badge');
+
+            if (!data.bluetooth_info || !data.bluetooth_info.devices || !Array.isArray(data.bluetooth_info.devices)) {
+                bluetoothCard.style.display = 'none';
+                return;
+            }
+
+            const btInfo = data.bluetooth_info;
+            const devices = btInfo.devices || [];
+
+            if (devices.length === 0 && !btInfo.adapter_properties) {
+                bluetoothCard.style.display = 'none';
+                return;
+            }
+
+            bluetoothCard.style.display = 'block';
+            countBadge.textContent = devices.length;
+
+            // Display adapter properties
+            let adapterHtml = '';
+            if (btInfo.adapter_properties) {
+                const adapter = btInfo.adapter_properties;
+                adapterHtml += '<div class="package-detail-item" style="margin-bottom: 1.5rem;">';
+                adapterHtml += '<div class="package-detail-header">';
+                adapterHtml += '<h4>📶 Bluetooth Adapter</h4>';
+                if (adapter.state) {
+                    const isOn = adapter.state === 'ON';
+                    const stateClass = isOn ? 'success' : 'warning';
+                    adapterHtml += `<span class="version-badge" style="background: var(--${stateClass});">${adapter.state || 'UNKNOWN'}</span>`;
+                }
+                adapterHtml += '</div>';
+                adapterHtml += '<div class="package-detail-content">';
+                adapterHtml += '<table class="info-table">';
+                
+                if (adapter.name) {
+                    adapterHtml += `<tr><td>Name:</td><td>${escapeHtml(adapter.name)}</td></tr>`;
+                }
+                if (adapter.address) {
+                    adapterHtml += `<tr><td>Address:</td><td><code>${escapeHtml(adapter.address)}</code></td></tr>`;
+                }
+                if (adapter.state) {
+                    adapterHtml += `<tr><td>State:</td><td>${escapeHtml(adapter.state)}</td></tr>`;
+                }
+                if (adapter.connection_state) {
+                    adapterHtml += `<tr><td>Connection State:</td><td>${escapeHtml(adapter.connection_state)}</td></tr>`;
+                }
+                if (adapter.discovering !== undefined) {
+                    adapterHtml += `<tr><td>Discovering:</td><td>${adapter.discovering ? 'Yes' : 'No'}</td></tr>`;
+                }
+                if (adapter.max_connected_audio_devices !== undefined) {
+                    adapterHtml += `<tr><td>Max Connected Audio Devices:</td><td>${adapter.max_connected_audio_devices}</td></tr>`;
+                }
+                if (adapter.a2dp_offload_enabled !== undefined) {
+                    adapterHtml += `<tr><td>A2DP Offload Enabled:</td><td>${adapter.a2dp_offload_enabled ? 'Yes' : 'No'}</td></tr>`;
+                }
+                if (adapter.sar_status) {
+                    adapterHtml += `<tr><td>SAR Status:</td><td>${escapeHtml(adapter.sar_status)}</td></tr>`;
+                }
+                if (adapter.sar_type) {
+                    adapterHtml += `<tr><td>SAR Type:</td><td>${escapeHtml(adapter.sar_type)}</td></tr>`;
+                }
+                
+                adapterHtml += '</table>';
+                adapterHtml += '</div>';
+                adapterHtml += '</div>';
+            }
+            bluetoothAdapterInfoEl.innerHTML = adapterHtml;
+
+            // Display devices
+            let devicesHtml = '<div class="package-details-container">';
+            
+            devices.forEach((device, index) => {
+                const isConnected = device.connected === true;
+                const deviceName = device.name || 'Unknown Device';
+                const macAddress = device.mac_address || device.masked_address || 'N/A';
+                
+                devicesHtml += `<div class="package-detail-item" data-device-name="${deviceName.toLowerCase()}" data-mac="${macAddress.toLowerCase()}" data-services="${(device.services || []).join(' ').toLowerCase()}">`;
+                devicesHtml += '<div class="package-detail-header">';
+                devicesHtml += `<h4>${escapeHtml(deviceName)}</h4>`;
+                if (isConnected) {
+                    devicesHtml += '<span class="version-badge" style="background: var(--success);">CONNECTED</span>';
+                } else {
+                    devicesHtml += '<span class="version-badge" style="background: var(--text-secondary);">NOT CONNECTED</span>';
+                }
+                devicesHtml += '</div>';
+                
+                devicesHtml += '<div class="package-detail-content">';
+                devicesHtml += '<table class="info-table">';
+                
+                if (macAddress && macAddress !== 'N/A') {
+                    devicesHtml += `<tr><td>MAC Address:</td><td><code>${escapeHtml(macAddress)}</code></td></tr>`;
+                }
+                if (device.masked_address && device.masked_address !== macAddress) {
+                    devicesHtml += `<tr><td>Masked Address:</td><td><code>${escapeHtml(device.masked_address)}</code></td></tr>`;
+                }
+                if (device.identity_address) {
+                    devicesHtml += `<tr><td>Identity Address:</td><td><code>${escapeHtml(device.identity_address)}</code></td></tr>`;
+                }
+                if (device.device_class) {
+                    devicesHtml += `<tr><td>Device Class:</td><td><code>${escapeHtml(device.device_class)}</code></td></tr>`;
+                }
+                if (device.device_type !== undefined) {
+                    devicesHtml += `<tr><td>Device Type:</td><td>${device.device_type}</td></tr>`;
+                }
+                if (device.transport_type) {
+                    devicesHtml += `<tr><td>Transport Type:</td><td>${escapeHtml(device.transport_type)}</td></tr>`;
+                }
+                if (device.link_type !== undefined) {
+                    devicesHtml += `<tr><td>Link Type:</td><td>${device.link_type}</td></tr>`;
+                }
+                if (device.manufacturer !== undefined) {
+                    devicesHtml += `<tr><td>Manufacturer ID:</td><td>${device.manufacturer}</td></tr>`;
+                }
+                if (device.services && device.services.length > 0) {
+                    devicesHtml += `<tr><td>Services:</td><td>`;
+                    device.services.forEach((service, idx) => {
+                        if (service !== 'No uuid' && service !== '00000000-0000-0000-0000-000000000000') {
+                            devicesHtml += `<span class="service-badge">${escapeHtml(service)}</span>`;
+                        }
+                    });
+                    if (device.services.every(s => s === 'No uuid' || s === '00000000-0000-0000-0000-000000000000')) {
+                        devicesHtml += '<span style="color: var(--text-secondary);">No services</span>';
+                    }
+                    devicesHtml += '</td></tr>';
+                }
+                
+                devicesHtml += '</table>';
+                devicesHtml += '</div>';
+                devicesHtml += '</div>';
+            });
+            
+            devicesHtml += '</div>';
+            bluetoothDevicesListEl.innerHTML = devicesHtml;
+
+            // Add search functionality
+            const searchInput = document.getElementById('bluetooth-search-input');
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.toLowerCase();
+                const items = document.querySelectorAll('#bluetooth-devices-list .package-detail-item');
+                let visibleCount = 0;
+
+                items.forEach(item => {
+                    const deviceName = item.getAttribute('data-device-name') || '';
+                    const mac = item.getAttribute('data-mac') || '';
+                    const services = item.getAttribute('data-services') || '';
+                    
+                    if (deviceName.includes(query) || mac.includes(query) || services.includes(query)) {
                         item.style.display = 'block';
                         visibleCount++;
                     } else {

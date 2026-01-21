@@ -661,7 +661,7 @@ impl Adb {
         use bugreport_extractor_library::run_parsers_concurrently;
         use bugreport_extractor_library::parsers::{
             Parser as DataParser, ParserType, HeaderParser, BatteryParser, 
-            PackageParser, ProcessParser, PowerParser, NetworkParser
+            PackageParser, ProcessParser, PowerParser, NetworkParser, BluetoothParser
         };
         use bugreport_extractor_library::zip_utils;
         use std::sync::Arc;
@@ -783,6 +783,15 @@ impl Adb {
             log::warn!("  ⚠️ [ANALYZE] Failed to create NetworkParser");
         }
         
+        // Add Bluetooth parser
+        log::info!("  📶 [ANALYZE] Creating BluetoothParser...");
+        if let Ok(bluetooth_parser) = BluetoothParser::new() {
+            parsers_to_run.push((ParserType::Bluetooth, Box::new(bluetooth_parser)));
+            log::info!("  ✅ [ANALYZE] BluetoothParser created");
+        } else {
+            log::warn!("  ⚠️ [ANALYZE] Failed to create BluetoothParser");
+        }
+        
         log::info!("✅ [ANALYZE] Created {} parsers", parsers_to_run.len());
         
         // Run parsers concurrently
@@ -808,6 +817,7 @@ impl Adb {
             network_info: Vec<NetworkInfo>,
             network_stats: Vec<NetworkStats>,
             sockets: Vec<SocketInfo>,
+            bluetooth_info: Option<BluetoothInfo>,
         }
         
         #[derive(Serialize, Clone)]
@@ -960,6 +970,42 @@ impl Adb {
             additional_info: Option<String>,
         }
         
+        #[derive(Serialize, Clone)]
+        struct AdapterProperties {
+            a2dp_offload_enabled: Option<bool>,
+            address: Option<String>,
+            connection_state: Option<String>,
+            discovering: Option<bool>,
+            discovery_end_ms: Option<u64>,
+            max_connected_audio_devices: Option<u32>,
+            name: Option<String>,
+            sar_history: Option<String>,
+            sar_status: Option<String>,
+            sar_type: Option<String>,
+            state: Option<String>,
+        }
+        
+        #[derive(Serialize, Clone)]
+        struct BluetoothDevice {
+            connected: Option<bool>,
+            device_class: Option<String>,
+            device_type: Option<u32>,
+            identity_address: Option<String>,
+            link_type: Option<u32>,
+            mac_address: Option<String>,
+            manufacturer: Option<u32>,
+            masked_address: Option<String>,
+            name: Option<String>,
+            services: Vec<String>,
+            transport_type: Option<String>,
+        }
+        
+        #[derive(Serialize, Clone)]
+        struct BluetoothInfo {
+            adapter_properties: Option<AdapterProperties>,
+            devices: Vec<BluetoothDevice>,
+        }
+        
         // Extract data from results
         log::info!("📤 [ANALYZE] Extracting data from parser results...");
         let mut device_info = None;
@@ -974,6 +1020,7 @@ impl Adb {
         let mut network_info: Vec<NetworkInfo> = Vec::new();
         let mut network_stats: Vec<NetworkStats> = Vec::new();
         let mut sockets: Vec<SocketInfo> = Vec::new();
+        let mut bluetooth_info: Option<BluetoothInfo> = None;
         
         for (parser_type, result, duration) in results {
             log::info!("  🔍 [ANALYZE] Processing {:?} result (took {:?})", parser_type, duration);
@@ -1855,6 +1902,92 @@ impl Adb {
                                 log::warn!("    ⚠️ [ANALYZE] Network result is not an object");
                             }
                         },
+                        ParserType::Bluetooth => {
+                            log::info!("    📶 [ANALYZE] Extracting Bluetooth info...");
+                            if let Some(obj) = json_output.as_object() {
+                                log::info!("    📊 [ANALYZE] Bluetooth result is an object with keys: {:?}", obj.keys().collect::<Vec<_>>());
+                                
+                                let mut adapter_properties: Option<AdapterProperties> = None;
+                                let mut devices: Vec<BluetoothDevice> = Vec::new();
+                                
+                                // Parse adapter_properties
+                                if let Some(adapter_obj) = obj.get("adapter_properties").and_then(|v| v.as_object()) {
+                                    log::info!("    📊 [ANALYZE] Found adapter_properties");
+                                    
+                                    adapter_properties = Some(AdapterProperties {
+                                        a2dp_offload_enabled: adapter_obj.get("A2dpOffloadEnabled").and_then(|v| v.as_bool()),
+                                        address: adapter_obj.get("Address").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                        connection_state: adapter_obj.get("ConnectionState").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                        discovering: adapter_obj.get("Discovering").and_then(|v| v.as_bool()),
+                                        discovery_end_ms: adapter_obj.get("DiscoveryEndMs").and_then(|v| v.as_u64()),
+                                        max_connected_audio_devices: adapter_obj.get("MaxConnectedAudioDevices").and_then(|v| v.as_u64()).map(|v| v as u32),
+                                        name: adapter_obj.get("Name").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                        sar_history: adapter_obj.get("SarHistory").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                        sar_status: adapter_obj.get("SarStatus").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                        sar_type: adapter_obj.get("SarType").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                        state: adapter_obj.get("State").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                    });
+                                    
+                                    log::info!("    ✅ [ANALYZE] Parsed adapter properties");
+                                } else {
+                                    log::warn!("    ⚠️ [ANALYZE] No 'adapter_properties' found in Bluetooth data");
+                                }
+                                
+                                // Parse devices array
+                                if let Some(devices_arr) = obj.get("devices").and_then(|v| v.as_array()) {
+                                    log::info!("    📊 [ANALYZE] Found {} Bluetooth devices", devices_arr.len());
+                                    
+                                    for device_json in devices_arr {
+                                        if let Some(device_obj) = device_json.as_object() {
+                                            let services = device_obj.get("services")
+                                                .and_then(|v| v.as_array())
+                                                .map(|arr| {
+                                                    arr.iter()
+                                                        .filter_map(|s| s.as_str().map(|s| s.to_string()))
+                                                        .collect()
+                                                })
+                                                .unwrap_or_default();
+                                            
+                                            let device_class = device_obj.get("device_class")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string())
+                                                .or_else(|| {
+                                                    device_obj.get("device_class")
+                                                        .and_then(|v| v.as_u64())
+                                                        .map(|v| format!("0x{:06x}", v))
+                                                });
+                                            
+                                            devices.push(BluetoothDevice {
+                                                connected: device_obj.get("connected").and_then(|v| v.as_bool()),
+                                                device_class,
+                                                device_type: device_obj.get("device_type").and_then(|v| v.as_u64()).map(|v| v as u32),
+                                                identity_address: device_obj.get("identity_address").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                                link_type: device_obj.get("link_type").and_then(|v| v.as_u64()).map(|v| v as u32),
+                                                mac_address: device_obj.get("mac_address").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                                manufacturer: device_obj.get("manufacturer").and_then(|v| v.as_u64()).map(|v| v as u32),
+                                                masked_address: device_obj.get("masked_address").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                                name: device_obj.get("name").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                                services,
+                                                transport_type: device_obj.get("transport_type").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                            });
+                                        }
+                                    }
+                                    
+                                    log::info!("    ✅ [ANALYZE] Parsed {} Bluetooth devices", devices.len());
+                                } else {
+                                    log::warn!("    ⚠️ [ANALYZE] No 'devices' array found in Bluetooth data");
+                                }
+                                
+                                bluetooth_info = Some(BluetoothInfo {
+                                    adapter_properties,
+                                    devices,
+                                });
+                                
+                                log::info!("    ✅ [ANALYZE] Bluetooth info extracted successfully");
+                            } else {
+                                log::warn!("    ⚠️ [ANALYZE] Bluetooth result is not an object");
+                            }
+                        },
                         _ => {
                             log::info!("    ℹ️ [ANALYZE] Skipping {:?} (not used in summary)", parser_type);
                         }
@@ -1939,9 +2072,16 @@ impl Adb {
             }
         });
         
-        // Calculate unique package count (count distinct package names, ignoring versions)
+        // Calculate unique package count by combining both package_details and packages
+        // This ensures we count all unique packages regardless of which source has the data
         let unique_package_count = {
             let mut unique_packages = std::collections::HashSet::new();
+            // Add packages from package_details (installed packages)
+            for pkg_detail in &package_details {
+                unique_packages.insert(pkg_detail.package_name.clone());
+            }
+            // Also add packages from installation history (packages array)
+            // This ensures we count all unique packages even if package_details is incomplete
             for pkg in &packages {
                 unique_packages.insert(pkg.package_name.clone());
             }
@@ -2012,6 +2152,7 @@ impl Adb {
             network_info: network_info.clone(),
             network_stats: network_stats.clone(),
             sockets: sockets.clone(),
+            bluetooth_info: bluetooth_info.clone(),
         };
         
         log::info!("✅ [ANALYZE] Analysis complete!");
@@ -2023,6 +2164,9 @@ impl Adb {
         log::info!("🌐 [ANALYZE] Network interfaces: {}", network_info.len());
         log::info!("📊 [ANALYZE] Network stats: {}", network_stats.len());
         log::info!("🔌 [ANALYZE] Sockets: {}", sockets.len());
+        if let Some(ref bt_info) = bluetooth_info {
+            log::info!("📶 [ANALYZE] Bluetooth devices: {}", bt_info.devices.len());
+        }
         
         Ok(serde_wasm_bindgen::to_value(&summary)?)
     }
