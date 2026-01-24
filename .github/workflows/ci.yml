@@ -28,7 +28,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo registry and git dependencies
-        uses: Swatinem/rust-cache@2
+        uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
 
@@ -50,7 +50,7 @@ jobs:
           targets: wasm32-unknown-unknown
 
       - name: Cache cargo
-        uses: Swatinem/rust-cache@2
+        uses: Swatinem/rust-cache@v2
         with:
           key: wasm
 
