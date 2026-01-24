@@ -329,7 +329,7 @@ fn test_directory_depth() {
     ];
     
     for (path, expected_depth) in test_cases {
-        let depth = path.matches('/').count() - if path.starts_with('/') { 1 } else { 0 };
+        let depth = path.split('/').filter(|s| !s.is_empty()).count();
         assert_eq!(depth, expected_depth);
     }
 }

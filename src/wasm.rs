@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use super::auth::{AdbKeyPair, storage};
 use super::client::AdbClient;
 use super::transport::WebUsbTransport;
+#[cfg(feature = "bugreport-analysis")]
+use super::parsers::{extract_kernel_version, extract_manufacturer_model};
 
 /// Initialize the WASM module
 #[wasm_bindgen(start)]
@@ -665,8 +667,7 @@ impl Adb {
         };
         use bugreport_extractor_library::zip_utils;
         use std::sync::Arc;
-        use std::io::Read;
-        
+
         log::info!("🔍 [ANALYZE] Starting bugreport analysis");
         log::info!("📊 [ANALYZE] Data size: {} bytes ({:.2} MB)", data.len(), data.len() as f64 / 1_048_576.0);
 
@@ -1054,9 +1055,8 @@ impl Adb {
         // Extract data from results
         log::info!("📤 [ANALYZE] Extracting data from parser results...");
         let mut device_info = None;
-        let mut battery_info = None;
+        let battery_info = None;
         let mut process_count = 0;
-        let mut package_count = 0;
         let mut packages = Vec::new();
         let mut processes: Vec<ProcessInfo> = Vec::new();
         let mut battery_apps: Vec<BatteryAppInfo> = Vec::new();
@@ -1587,12 +1587,11 @@ impl Adb {
                             // The packages key might be in a different element of the array than install_logs
                             let mut parsed_packages = false;
                             if let Some(obj) = json_output.as_object() {
-                                if parse_packages_array(obj).is_some() {
-                                    parsed_packages = true;
-                                }
+                                parsed_packages = parse_packages_array(obj).is_some();
                                 // Also try to parse install_logs for backward compatibility
-                                if let Some(count) = parse_install_logs_from_obj(obj) {
-                                    package_count = count;
+                                let _ = parse_install_logs_from_obj(obj);
+                                if !parsed_packages {
+                                    log::warn!("    ⚠️ [ANALYZE] No packages array found in object");
                                 }
                             } else if let Some(arr) = json_output.as_array() {
                                 log::info!("    📦 [ANALYZE] Package result is an array with {} elements", arr.len());
@@ -1609,8 +1608,7 @@ impl Adb {
                                         }
                                         
                                         // Also check for install_logs in this element
-                                        if let Some(count) = parse_install_logs_from_obj(obj) {
-                                            package_count = count;
+                                        if parse_install_logs_from_obj(obj).is_some() {
                                             log::info!("    ✅ [ANALYZE] Found install_logs in element {}", idx);
                                         }
                                     }
@@ -1621,11 +1619,6 @@ impl Adb {
                                 }
                             } else {
                                 log::warn!("    ⚠️ [ANALYZE] Package result is not an object or array");
-                            }
-                            
-                            // Update package_count from package_details if we parsed packages
-                            if parsed_packages && !package_details.is_empty() {
-                                package_count = package_details.len();
                             }
                         },
                         ParserType::Power => {
@@ -2505,56 +2498,4 @@ fn manual_extract_dumpstate(zip_data: &[u8]) -> Result<Vec<u8>, String> {
     }
     
     Err("Found dumpstate files but failed to extract them".to_string())
-}
-
-/// Extract kernel version from kernel string
-/// Format: "Linux version 6.6.50-android15-8-abA346BXXSBDYI1-4k (kleaf@build-host) ..."
-/// Returns: "6.6.50-android15-8-abA346BXXSBDYI1-4k"
-#[cfg(feature = "bugreport-analysis")]
-pub fn extract_kernel_version(kernel_str: &str) -> String {
-    // Extract version from "Linux version 6.6.50-android15-8-abA346BXXSBDYI1-4k ..."
-    if let Some(version_start) = kernel_str.find("Linux version ") {
-        let version_part = &kernel_str[version_start + 13..]; // Skip "Linux version "
-        // Trim leading whitespace first
-        let version_part = version_part.trim_start();
-        // Find first whitespace or opening parenthesis
-        let version_end = version_part
-            .find(char::is_whitespace)
-            .or_else(|| version_part.find('('))
-            .unwrap_or(version_part.len());
-        
-        version_part[..version_end].to_string()
-    } else {
-        // If "Linux version " not found, return the whole string (truncated if too long)
-        if kernel_str.len() > 100 {
-            format!("{}...", &kernel_str[..100])
-        } else {
-            kernel_str.to_string()
-        }
-    }
-}
-
-/// Extract manufacturer and model from build fingerprint
-/// Format: 'samsung/a34xeea/a34x:15/AP3A.240905.015.A2/A346BXXSBDYI1:user/release-keys'
-/// Returns: (manufacturer, model)
-#[cfg(feature = "bugreport-analysis")]
-pub fn extract_manufacturer_model(fingerprint: &str) -> (String, String) {
-    // Remove quotes if present
-    let fp_clean = fingerprint.trim_matches('\'').trim_matches('"');
-    // Split by '/' - format is manufacturer/codename/device:...
-    let parts: Vec<&str> = fp_clean.split('/').collect();
-    if parts.len() >= 3 {
-        let mfr = parts[0].to_string();
-        // Model is usually in the device part (third element)
-        // Format: "device:version" or just "device"
-        let device_part = parts[2];
-        let model_name = if let Some(colon_pos) = device_part.find(':') {
-            &device_part[..colon_pos]
-        } else {
-            device_part
-        };
-        (mfr, model_name.to_string())
-    } else {
-        ("Unknown".to_string(), "Unknown".to_string())
-    }
 }

@@ -1,14 +1,10 @@
 # Default target for builds (but not tests)
-# Tests should run on the host target
-# 
-# NOTE: The tests in tests/wasm_test.rs test WASM-specific functions that
-# depend on web-sys, which only compiles for wasm32-unknown-unknown.
-# These tests cannot run on the host target due to WASM-only dependencies.
 #
-# To run other tests (like client_tests, sync_tests) on host:
-#   cargo test --target $(rustc -vV | grep host | cut -d' ' -f3)
+# Run host tests (protocol, sync, client, lib unit tests):
+#   ./test-host.sh
+#   # or: cargo test --target $(rustc -vV | grep host | cut -d' ' -f2) --no-default-features
 #
-# For wasm_test, the functions are tested as part of the WASM build process.
+# tests/wasm_test.rs (bugreport-analysis) only runs in WASM; use wasm-pack test.
 [build]
 target = "wasm32-unknown-unknown"
 

@@ -209,6 +209,7 @@ pub enum AdbError {
     NotConnected,
 }
 
+#[cfg(feature = "webusb")]
 impl From<wasm_bindgen::JsValue> for AdbError {
     fn from(value: wasm_bindgen::JsValue) -> Self {
         AdbError::UsbError(format!("{:?}", value))

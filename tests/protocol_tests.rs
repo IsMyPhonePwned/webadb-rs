@@ -83,8 +83,8 @@ fn test_message_from_bytes_invalid_magic() {
     let message = Message::new(Command::Cnxn, 0, 0, b"");
     let mut bytes = message.to_bytes();
     
-    // Corrupt the magic field
-    bytes[8..12].copy_from_slice(&0x12345678u32.to_le_bytes());
+    // Corrupt the magic field (bytes 20..24: command, arg0, arg1, data_length, data_crc32, magic)
+    bytes[20..24].copy_from_slice(&0x12345678u32.to_le_bytes());
     
     assert!(Message::from_bytes(&bytes).is_err());
 }
