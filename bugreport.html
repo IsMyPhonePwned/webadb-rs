@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comprehensive Bugreport Analyzer</title>
+    <title>IsMyPhonePwned ?</title>
     <style>
         * {
             margin: 0;
@@ -62,6 +62,26 @@
             margin-bottom: 3rem;
             padding-bottom: 1rem;
             border-bottom: 1px solid var(--border);
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo {
+            height: 100px;
+            width: auto;
+            max-width: 350px;
+            object-fit: contain;
+        }
+
+        .logo-text {
+            font-size: 1.75rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
         }
 
         h1 {
@@ -854,7 +874,10 @@
 <body>
     <div class="container">
         <header>
-            <h1>📱 Comprehensive Bugreport Analyzer</h1>
+            <div class="logo-container">
+                <img src="logo.png" alt="IsMyPhonePwned Logo" class="logo" onerror="this.style.display='none';">
+                <h1 class="logo-text">IsMyPhonePwned ?</h1>
+            </div>
             <div style="display: flex; align-items: center; gap: 1rem;">
                 <span id="wasm-status" style="font-size: 0.75rem; padding: 0.25rem 0.75rem; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 12px;">
                     ⏳ Loading...
@@ -871,6 +894,228 @@
         <div id="loading-spinner" class="loading-spinner">
             <div class="spinner"></div>
             <div class="loading-text">Analyzing bugreport... Please wait</div>
+        </div>
+
+        <!-- Help Guide -->
+        <div class="section" style="background: var(--bg-secondary); border-left: 4px solid var(--accent);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <h2 style="margin: 0;">📖 How to Get Bug Reports</h2>
+                <button class="section-toggle collapsed" onclick="toggleSection('help-guide')" style="margin: 0;">▼</button>
+            </div>
+            <div class="section-content collapsed" id="help-guide-content" style="margin-top: 1rem;">
+                <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 1.5rem;">
+                    <h3 style="margin-bottom: 1rem; color: var(--text-primary);">Android Bug Report Acquisition Guide</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.875rem;">
+                        This guide details how to capture system logs and bug reports on Android devices. You can use manufacturer-specific "Secret Codes" (no USB debugging required) or connect via USB/ADB with USB debugging enabled.
+                    </p>
+                    
+                    <!-- USB Debugging Option -->
+                    <div style="margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 2px solid var(--border); background: rgba(33, 150, 243, 0.05); padding: 1.5rem; border-radius: 6px;">
+                        <h4 style="color: var(--text-primary); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <span>🔌 USB Debugging Method (Recommended for Direct Connection)</span>
+                        </h4>
+                        <p style="color: var(--text-secondary); margin-bottom: 1rem; font-size: 0.875rem;">
+                            You can connect your phone directly to this browser via USB/ADB. This allows you to generate bug reports, download existing ones, and analyze them directly from your device.
+                        </p>
+                        <div style="background: var(--bg-secondary); padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
+                            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Requires Developer Mode: <strong>YES</strong></div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Requires USB Connection: <strong>YES</strong></div>
+                        </div>
+                        <ol style="margin-left: 1.5rem; color: var(--text-primary); line-height: 1.8;">
+                            <li>Go to <strong>Settings</strong> > <strong>About Phone</strong>.</li>
+                            <li>Tap <strong>Build Number</strong> 7 times to enable Developer Mode.</li>
+                            <li>Go to <strong>Settings</strong> > <strong>System</strong> > <strong>Developer Options</strong>.</li>
+                            <li>Enable <strong>USB Debugging</strong> (toggle it ON).</li>
+                            <li>Connect your phone to your computer via USB cable.</li>
+                            <li>When prompted on your phone, tap <strong>Allow USB debugging</strong> and check <strong>Always allow from this computer</strong> (optional but recommended).</li>
+                            <li>Use the <strong>"Generate New"</strong> or <strong>"From Device"</strong> tabs in this tool to connect and work with your device.</li>
+                        </ol>
+                        <div style="background: rgba(33, 150, 243, 0.1); border-left: 4px solid var(--accent); padding: 1rem; margin-top: 1rem; border-radius: 4px;">
+                            <strong style="color: var(--accent);">💡 Benefits of USB Debugging:</strong>
+                            <ul style="margin-left: 1.5rem; margin-top: 0.5rem; color: var(--text-primary); font-size: 0.875rem;">
+                                <li>Generate bug reports directly from the browser</li>
+                                <li>Download existing bug reports without manual file transfer</li>
+                                <li>Real-time device connection and analysis</li>
+                                <li>No need to manually locate files on your device</li>
+                            </ul>
+                        </div>
+                        <div style="background: rgba(244, 67, 54, 0.1); border-left: 4px solid var(--error); padding: 1rem; margin-top: 1rem; border-radius: 4px;">
+                            <strong style="color: var(--error);">🔒 Security Reminder</strong>
+                            <p style="margin-top: 0.5rem; color: var(--text-primary); font-size: 0.875rem;">
+                                <strong>Important:</strong> After completing your analysis, please <strong>disable USB Debugging</strong> and <strong>disable Developer Mode</strong> for security reasons. USB Debugging can expose your device to potential security risks if left enabled.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Google Pixel -->
+                    <div style="margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border);">
+                        <h4 style="color: var(--text-primary); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <span>1. Google Pixel / Motorola / Sony (Stock Android)</span>
+                        </h4>
+                        <div style="background: var(--bg-secondary); padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
+                            <div style="font-family: monospace; font-size: 1.25rem; font-weight: 600; color: var(--accent); margin-bottom: 0.5rem;">N/A (No Secret Code)</div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Requires Developer Mode: <strong>YES (Mandatory)</strong></div>
+                        </div>
+                        <p style="color: var(--text-secondary); margin-bottom: 1rem; font-size: 0.875rem;">
+                            These devices <em>do not</em> have secret codes to dump logs to storage. You must use the Developer Options menu.
+                        </p>
+                        <ol style="margin-left: 1.5rem; color: var(--text-primary); line-height: 1.8;">
+                            <li>Go to <strong>Settings</strong> > <strong>About Phone</strong>.</li>
+                            <li>Tap <strong>Build Number</strong> 7 times to enable Developer Mode.</li>
+                            <li>Go to <strong>Settings</strong> > <strong>System</strong> > <strong>Developer Options</strong>.</li>
+                            <li>Tap <strong>Take bug report</strong> > <strong>Interactive report</strong>.</li>
+                            <li>Wait for the notification "Bug report captured" (2-5 mins).</li>
+                            <li><strong>File Retrieval:</strong> You <strong>cannot</strong> browse to the file manually due to permissions. You must tap the <strong>Notification</strong> when finished and share it to <strong>Google Drive</strong> or <strong>Email</strong>.</li>
+                        </ol>
+                        <div style="background: rgba(244, 67, 54, 0.1); border-left: 4px solid var(--error); padding: 1rem; margin-top: 1rem; border-radius: 4px;">
+                            <strong style="color: var(--error);">🔒 Security Reminder</strong>
+                            <p style="margin-top: 0.5rem; color: var(--text-primary); font-size: 0.875rem;">
+                                <strong>Important:</strong> After completing the bug report analysis, please <strong>disable Developer Mode</strong> for security reasons. Developer Mode can expose your device to potential security risks if left enabled. Go to <strong>Settings</strong> > <strong>System</strong> > <strong>Developer Options</strong> and toggle it OFF.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Samsung -->
+                    <div style="margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border);">
+                        <h4 style="color: var(--text-primary); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <span>2. Samsung Galaxy Devices (SysDump)</span>
+                            <span style="font-size: 0.75rem; font-weight: normal; color: var(--text-secondary);">S-Series, Z-Flip, Z-Fold, A-Series</span>
+                        </h4>
+                        <div style="background: var(--bg-secondary); padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
+                            <div style="font-family: monospace; font-size: 1.25rem; font-weight: 600; color: var(--accent); margin-bottom: 0.5rem;">*#9900#</div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Requires Developer Mode: <strong>NO</strong></div>
+                        </div>
+                        <ol style="margin-left: 1.5rem; color: var(--text-primary); line-height: 1.8;">
+                            <li>Open the <strong>Samsung Phone</strong> app (do not use Google Phone or third-party dialers).</li>
+                            <li>Dial <code style="background: var(--bg-secondary); padding: 0.25rem 0.5rem; border-radius: 4px;">*#9900#</code>.</li>
+                            <li>A menu titled <strong>SysDump</strong> will appear.</li>
+                            <li>Tap <strong>Run dumpstate/logcat/modem log</strong>.</li>
+                            <li>Wait for the process to finish (usually silent or shows a loading spinner).</li>
+                            <li><strong>Crucial Step:</strong> Scroll down and tap <strong>Copy to sdcard (include CP Ramdump)</strong>.</li>
+                            <li><strong>File Location:</strong> Open <strong>My Files</strong> > <strong>Internal Storage</strong> > <strong>log</strong>. Look for a file named <code>dumpState_&lt;model&gt;_&lt;date&gt;.zip</code>.</li>
+                        </ol>
+                        <div style="background: rgba(255, 152, 0, 0.1); border-left: 4px solid var(--warning); padding: 1rem; margin-top: 1rem; border-radius: 4px;">
+                            <strong style="color: var(--warning);">⚠️ Troubleshooting: Samsung Z Flip 7 (One UI 6/7)</strong>
+                            <p style="margin-top: 0.5rem; color: var(--text-primary); font-size: 0.875rem;">
+                                If dialing <code>*#9900#</code> does nothing on your newer Samsung device:
+                            </p>
+                            <ul style="margin-left: 1.5rem; margin-top: 0.5rem; color: var(--text-primary); font-size: 0.875rem;">
+                                <li><strong>Issue 1: Auto Blocker is On (Most Likely)</strong> - Go to <strong>Settings</strong> > <strong>Security and Privacy</strong> > <strong>Auto Blocker</strong> and turn it OFF temporarily.</li>
+                                <li><strong>Issue 2: Carrier Restrictions</strong> - US Carriers often disable these codes. Workaround: Open <strong>Samsung Members</strong> app > <strong>Support</strong> > <strong>Error Reports</strong>.</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Xiaomi -->
+                    <div style="margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border);">
+                        <h4 style="color: var(--text-primary); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <span>3. Xiaomi / Redmi / POCO (MIUI & HyperOS)</span>
+                        </h4>
+                        <div style="background: var(--bg-secondary); padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
+                            <div style="font-family: monospace; font-size: 1.25rem; font-weight: 600; color: var(--accent); margin-bottom: 0.5rem;">*#*#284#*#*</div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Requires Developer Mode: <strong>NO</strong></div>
+                        </div>
+                        <ol style="margin-left: 1.5rem; color: var(--text-primary); line-height: 1.8;">
+                            <li>Open the <strong>Dialer/Phone</strong> app.</li>
+                            <li>Dial <code style="background: var(--bg-secondary); padding: 0.25rem 0.5rem; border-radius: 4px;">*#*#284#*#*</code>.</li>
+                            <li>The phone will vibrate immediately and show a notification: "Generating bug report...".</li>
+                            <li>Wait for the notification to say "Created".</li>
+                            <li><strong>File Location:</strong> <strong>File Manager</strong> > <strong>Internal Storage</strong> > <strong>MIUI</strong> > <strong>debug_log</strong>. The file is a <code>.zip</code> archive.</li>
+                        </ol>
+                    </div>
+
+                    <!-- OnePlus -->
+                    <div style="margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border);">
+                        <h4 style="color: var(--text-primary); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <span>4. OnePlus / OPPO / Realme (LogKit)</span>
+                        </h4>
+                        <div style="background: var(--bg-secondary); padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
+                            <div style="font-family: monospace; font-size: 1.25rem; font-weight: 600; color: var(--accent); margin-bottom: 0.5rem;">*#800#</div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Requires Developer Mode: <strong>NO</strong></div>
+                        </div>
+                        <ol style="margin-left: 1.5rem; color: var(--text-primary); line-height: 1.8;">
+                            <li>Open the <strong>Dialer/Phone</strong> app.</li>
+                            <li>Dial <code style="background: var(--bg-secondary); padding: 0.25rem 0.5rem; border-radius: 4px;">*#800#</code>.</li>
+                            <li>This opens the <strong>Feedback</strong> or <strong>LogKit</strong> app.</li>
+                            <li>Select a category (e.g., "System" or "Other").</li>
+                            <li>Tap <strong>Start Logging</strong>.</li>
+                            <li>Reproduce your bug/crash.</li>
+                            <li>Return to the app and tap <strong>Stop Logging</strong>.</li>
+                            <li><strong>File Location:</strong> <strong>File Manager</strong> > <strong>Phone Storage</strong> > <strong>Android</strong> > <strong>data</strong> > <strong>com.oplus.logkit</strong> > <strong>files</strong> > <strong>Log</strong>.</li>
+                            <li style="color: var(--text-secondary); font-size: 0.875rem;"><em>Note: On Android 11+, you may need a third-party file manager like "Solid Explorer" to view the Android/data folder.</em></li>
+                        </ol>
+                    </div>
+
+                    <!-- Huawei -->
+                    <div style="margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border);">
+                        <h4 style="color: var(--text-primary); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <span>5. Huawei / Honor (Project Menu)</span>
+                        </h4>
+                        <div style="background: var(--bg-secondary); padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
+                            <div style="font-family: monospace; font-size: 1.25rem; font-weight: 600; color: var(--accent); margin-bottom: 0.5rem;">*#*#2846579#*#*</div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Requires Developer Mode: <strong>NO</strong></div>
+                        </div>
+                        <ol style="margin-left: 1.5rem; color: var(--text-primary); line-height: 1.8;">
+                            <li>Open the <strong>Dialer/Phone</strong> app.</li>
+                            <li>Dial <code style="background: var(--bg-secondary); padding: 0.25rem 0.5rem; border-radius: 4px;">*#*#2846579#*#*</code>.</li>
+                            <li>Go to <strong>Background Settings</strong> > <strong>Log Settings</strong>.</li>
+                            <li>Check the logs you need (AP Log, Charge Log, etc.) and tap <strong>Log switch</strong>.</li>
+                            <li>Reproduce the issue, then turn logging off.</li>
+                            <li><strong>File Location:</strong> <strong>Files</strong> > <strong>Internal Storage</strong> > <strong>log</strong> (or <strong>ProjectMenu</strong> folder).</li>
+                        </ol>
+                    </div>
+
+
+                    <!-- Summary Table -->
+                    <div style="margin-top: 2rem; padding-top: 2rem; border-top: 2px solid var(--border);">
+                        <h4 style="color: var(--text-primary); margin-bottom: 1rem;">Summary Cheat Sheet</h4>
+                        <div style="overflow-x: auto;">
+                            <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
+                                <thead>
+                                    <tr style="background: var(--bg-secondary);">
+                                        <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--border); color: var(--text-primary); font-weight: 600;">Brand</th>
+                                        <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--border); color: var(--text-primary); font-weight: 600;">Secret Code</th>
+                                        <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--border); color: var(--text-primary); font-weight: 600;">Action Required</th>
+                                        <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--border); color: var(--text-primary); font-weight: 600;">Location (Internal Storage)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td style="padding: 0.75rem; border-bottom: 1px solid var(--border); color: var(--text-primary);"><strong>Samsung</strong></td>
+                                        <td style="padding: 0.75rem; border-bottom: 1px solid var(--border);"><code style="background: var(--bg-secondary); padding: 0.25rem 0.5rem; border-radius: 4px;">*#9900#</code></td>
+                                        <td style="padding: 0.75rem; border-bottom: 1px solid var(--border); color: var(--text-primary);">Select "Copy to sdcard"</td>
+                                        <td style="padding: 0.75rem; border-bottom: 1px solid var(--border);"><code style="color: var(--text-secondary);">/log</code></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 0.75rem; border-bottom: 1px solid var(--border); color: var(--text-primary);"><strong>Xiaomi / POCO</strong></td>
+                                        <td style="padding: 0.75rem; border-bottom: 1px solid var(--border);"><code style="background: var(--bg-secondary); padding: 0.25rem 0.5rem; border-radius: 4px;">*#*#284#*#*</code></td>
+                                        <td style="padding: 0.75rem; border-bottom: 1px solid var(--border); color: var(--text-primary);">Auto-generates</td>
+                                        <td style="padding: 0.75rem; border-bottom: 1px solid var(--border);"><code style="color: var(--text-secondary);">/MIUI/debug_log</code></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 0.75rem; border-bottom: 1px solid var(--border); color: var(--text-primary);"><strong>OnePlus / OPPO</strong></td>
+                                        <td style="padding: 0.75rem; border-bottom: 1px solid var(--border);"><code style="background: var(--bg-secondary); padding: 0.25rem 0.5rem; border-radius: 4px;">*#800#</code></td>
+                                        <td style="padding: 0.75rem; border-bottom: 1px solid var(--border); color: var(--text-primary);">Use LogKit UI</td>
+                                        <td style="padding: 0.75rem; border-bottom: 1px solid var(--border);"><code style="color: var(--text-secondary);">/Android/data/com.oplus.logkit</code></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 0.75rem; border-bottom: 1px solid var(--border); color: var(--text-primary);"><strong>Huawei</strong></td>
+                                        <td style="padding: 0.75rem; border-bottom: 1px solid var(--border);"><code style="background: var(--bg-secondary); padding: 0.25rem 0.5rem; border-radius: 4px;">*#*#2846579#*#*</code></td>
+                                        <td style="padding: 0.75rem; border-bottom: 1px solid var(--border); color: var(--text-primary);">Project Menu UI</td>
+                                        <td style="padding: 0.75rem; border-bottom: 1px solid var(--border);"><code style="color: var(--text-secondary);">/log</code></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 0.75rem; border-bottom: 1px solid var(--border); color: var(--text-primary);"><strong>Pixel / Moto</strong></td>
+                                        <td style="padding: 0.75rem; border-bottom: 1px solid var(--border); color: var(--text-secondary);">N/A</td>
+                                        <td style="padding: 0.75rem; border-bottom: 1px solid var(--border); color: var(--text-primary);">Dev Options Menu</td>
+                                        <td style="padding: 0.75rem; border-bottom: 1px solid var(--border); color: var(--text-secondary);">Via Notification Share</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Method Selection -->
@@ -1211,6 +1456,23 @@
                     </div>
                 </div>
 
+                <!-- USB Information -->
+                <div class="result-card" id="usb-card" style="display: none;">
+                    <div class="section-header">
+                        <h3>🔌 USB</h3>
+                        <span class="count-badge" id="usb-devices-count-badge">0</span>
+                    </div>
+                    <button class="section-toggle collapsed" onclick="toggleSection('usb')">▼</button>
+                    <div class="section-content collapsed" id="usb-content">
+                        <div id="usb-ports-info"></div>
+                        <div class="search-box" style="margin-top: 1rem;">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="usb-search-input" placeholder="Search devices by VID, PID, driver, or interface...">
+                        </div>
+                        <div id="usb-devices-list"></div>
+                    </div>
+                </div>
+
                 <!-- Full Data (JSON) -->
                 <div class="result-card">
                     <div class="section-header">
@@ -1235,7 +1497,41 @@
         </div>
 
         <footer style="text-align: center; padding: 2rem 0; color: var(--text-secondary); font-size: 0.813rem;">
-            Built with WebADB & bugreport-extractor-library
+            <div style="margin-bottom: 1rem;">
+                Built with WebADB & bugreport-extractor-library
+            </div>
+            <div style="max-width: 800px; margin: 0 auto; padding: 1rem; background: rgba(244, 67, 54, 0.05); border: 1px solid rgba(244, 67, 54, 0.2); border-radius: 6px; font-size: 0.75rem; line-height: 1.6;">
+                <strong style="color: var(--error); display: block; margin-bottom: 0.5rem;">⚠️ Disclaimer</strong>
+                <p style="color: var(--text-primary); margin: 0 0 0.75rem 0;">
+                    <strong style="color: var(--warning);">Beta Version:</strong> This is a beta version of the tool and is not finished. 
+                    Features may be incomplete, unstable, or subject to change. Some functionality may not work as expected.
+                </p>
+                <p style="color: var(--text-primary); margin: 0 0 0.75rem 0;">
+                    <strong style="color: var(--warning);">🔍 Detection Feature:</strong> The detection part (checking if your phone has been pwned) is not yet included in this version. 
+                    Currently, this tool only provides bug report analysis and data extraction. Detection capabilities will be added in future updates.
+                </p>
+                <p style="color: var(--text-primary); margin: 0 0 0.75rem 0;">
+                    <strong style="color: var(--success);">🔒 Privacy:</strong> All processing is done locally in your browser. 
+                    No data, bug reports, or analysis results are sent to any server. Everything remains on your device for your privacy and security.
+                </p>
+                <p style="color: var(--text-primary); margin: 0;">
+                    This website and the analysis results are provided "as is" without any warranties or guarantees. 
+                    Use of this tool and its results is at your own risk. The developers and contributors are not 
+                    responsible for any damage, data loss, or security issues that may arise from using this tool. 
+                    Always exercise caution when enabling Developer Mode or sharing bug reports, as they may contain 
+                    sensitive information. After analysis, please disable Developer Mode for security reasons.
+                </p>
+                <p style="color: var(--text-primary); margin: 1rem 0 0.5rem 0; text-align: center;">
+                    <a href="mailto:contact@ismyphonepwned.com" style="color: var(--accent); text-decoration: none; font-weight: 500;">
+                        📧 Contact: contact@ismyphonepwned.com
+                    </a>
+                </p>
+                <p style="color: var(--text-primary); margin: 0.5rem 0 0 0; text-align: center;">
+                    <a href="https://github.com/IsMyPhonePwned/" target="_blank" rel="noopener noreferrer" style="color: var(--accent); text-decoration: none; font-weight: 500;">
+                        Learn more at IsMyPhonePwned on GitHub →
+                    </a>
+                </p>
+            </div>
         </footer>
     </div>
 
@@ -1298,7 +1594,9 @@
                 power_history: currentResults.power_history || [],
                 network_info: currentResults.network_info || [],
                 network_stats: currentResults.network_stats || [],
-                sockets: currentResults.sockets || []
+                sockets: currentResults.sockets || [],
+                bluetooth_info: currentResults.bluetooth_info || null,
+                usb_info: currentResults.usb_info || null
             };
             
             const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
@@ -1336,7 +1634,9 @@
                     power_history: currentResults.power_history || [],
                     network_info: currentResults.network_info || [],
                     network_stats: currentResults.network_stats || [],
-                    sockets: currentResults.sockets || []
+                    sockets: currentResults.sockets || [],
+                    bluetooth_info: currentResults.bluetooth_info || null,
+                    usb_info: currentResults.usb_info || null
                 };
                 
                 await navigator.clipboard.writeText(JSON.stringify(data, null, 2));
@@ -1730,6 +2030,9 @@
 
             // Bluetooth info
             displayBluetoothInfo(data);
+
+            // USB info
+            displayUsbInfo(data);
 
             // JSON output
             document.getElementById('json-output').textContent = JSON.stringify(data, null, 2);
@@ -2340,6 +2643,160 @@
                     const networkName = item.getAttribute('data-network-name') || '';
                     
                     if (networkType.includes(query) || networkName.includes(query)) {
+                        item.style.display = 'block';
+                        visibleCount++;
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            });
+        }
+
+        function displayUsbInfo(data) {
+            const usbCard = document.getElementById('usb-card');
+            const usbPortsInfoEl = document.getElementById('usb-ports-info');
+            const usbDevicesListEl = document.getElementById('usb-devices-list');
+            const countBadge = document.getElementById('usb-devices-count-badge');
+
+            if (!data.usb_info || !data.usb_info.connected_devices || !Array.isArray(data.usb_info.connected_devices)) {
+                usbCard.style.display = 'none';
+                return;
+            }
+
+            const usbInfo = data.usb_info;
+            const devices = usbInfo.connected_devices || [];
+            const ports = usbInfo.ports || [];
+
+            if (devices.length === 0 && ports.length === 0) {
+                usbCard.style.display = 'none';
+                return;
+            }
+
+            usbCard.style.display = 'block';
+            countBadge.textContent = devices.length;
+
+            // Display ports
+            let portsHtml = '';
+            if (ports.length > 0) {
+                portsHtml += '<div class="package-detail-item" style="margin-bottom: 1.5rem;">';
+                portsHtml += '<div class="package-detail-header">';
+                portsHtml += '<h4>🔌 USB Ports</h4>';
+                portsHtml += '</div>';
+                portsHtml += '<div class="package-detail-content">';
+                portsHtml += '<table class="info-table">';
+                
+                ports.forEach((port, idx) => {
+                    portsHtml += '<tr>';
+                    portsHtml += `<td>Port ${idx + 1} (${escapeHtml(port.id || 'Unknown')}):</td>`;
+                    portsHtml += '<td>';
+                    if (port.connected !== undefined) {
+                        portsHtml += `<span style="padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; background: ${port.connected ? 'var(--success)' : 'var(--text-secondary)'}; color: white;">${port.connected ? 'CONNECTED' : 'DISCONNECTED'}</span>`;
+                    }
+                    if (port.current_mode) {
+                        portsHtml += ` <span style="margin-left: 0.5rem; color: var(--text-secondary);">Mode: ${escapeHtml(port.current_mode)}</span>`;
+                    }
+                    if (port.first_seen) {
+                        portsHtml += ` <span style="margin-left: 0.5rem; color: var(--text-secondary); font-size: 0.75rem;">First seen: ${escapeHtml(port.first_seen)}</span>`;
+                    }
+                    portsHtml += '</td>';
+                    portsHtml += '</tr>';
+                });
+                
+                portsHtml += '</table>';
+                portsHtml += '</div>';
+                portsHtml += '</div>';
+            }
+            usbPortsInfoEl.innerHTML = portsHtml;
+
+            // Display devices
+            let devicesHtml = '<div class="package-details-container">';
+            
+            devices.forEach((device, index) => {
+                const vid = device.vid || 'Unknown';
+                const pid = device.pid || 'Unknown';
+                const interfaceName = device.interface || 'Unknown';
+                const driver = device.driver || 'No driver';
+                const lastAction = device.last_action || 'Unknown';
+                
+                devicesHtml += `<div class="package-detail-item" data-vid="${vid.toLowerCase()}" data-pid="${pid.toLowerCase()}" data-driver="${driver.toLowerCase()}" data-interface="${interfaceName.toLowerCase()}">`;
+                devicesHtml += '<div class="package-detail-header">';
+                devicesHtml += `<h4>USB Device ${index + 1}</h4>`;
+                devicesHtml += `<span class="version-badge" style="background: var(--accent);">VID:${escapeHtml(vid)} PID:${escapeHtml(pid)}</span>`;
+                devicesHtml += '</div>';
+                
+                devicesHtml += '<div class="package-detail-content">';
+                devicesHtml += '<table class="info-table">';
+                
+                if (vid && vid !== 'Unknown') {
+                    devicesHtml += `<tr><td>VID:</td><td><code>${escapeHtml(vid)}</code></td></tr>`;
+                }
+                if (pid && pid !== 'Unknown') {
+                    devicesHtml += `<tr><td>PID:</td><td><code>${escapeHtml(pid)}</code></td></tr>`;
+                }
+                if (driver && driver !== 'No driver') {
+                    devicesHtml += `<tr><td>Driver:</td><td><code>${escapeHtml(driver)}</code></td></tr>`;
+                }
+                if (interfaceName && interfaceName !== 'Unknown') {
+                    devicesHtml += `<tr><td>Interface:</td><td><code>${escapeHtml(interfaceName)}</code></td></tr>`;
+                }
+                if (device.first_seen) {
+                    devicesHtml += `<tr><td>First Seen:</td><td>${escapeHtml(device.first_seen)}</td></tr>`;
+                }
+                if (device.last_seen) {
+                    devicesHtml += `<tr><td>Last Seen:</td><td>${escapeHtml(device.last_seen)}</td></tr>`;
+                }
+                if (lastAction && lastAction !== 'Unknown') {
+                    devicesHtml += `<tr><td>Last Action:</td><td>${escapeHtml(lastAction)}</td></tr>`;
+                }
+                
+                devicesHtml += '</table>';
+                
+                // Display events
+                if (device.events && device.events.length > 0) {
+                    devicesHtml += '<div class="detail-section" style="margin-top: 1rem;">';
+                    devicesHtml += `<strong>Events (${device.events.length})</strong>`;
+                    devicesHtml += '<div class="data-table-container" style="max-height: 300px;">';
+                    devicesHtml += '<table class="data-table">';
+                    devicesHtml += '<thead><tr><th>Timestamp</th><th>Action</th><th>Driver</th><th>Interface</th></tr></thead>';
+                    devicesHtml += '<tbody>';
+                    
+                    device.events.forEach((event) => {
+                        const actionClass = event.action === 'add' ? 'success' : event.action === 'remove' ? 'error' : 'warning';
+                        devicesHtml += '<tr>';
+                        devicesHtml += `<td style="font-size: 0.75rem;">${escapeHtml(event.timestamp || '-')}</td>`;
+                        devicesHtml += `<td><span style="padding: 0.125rem 0.375rem; border-radius: 4px; font-size: 0.75rem; background: var(--${actionClass}); color: white;">${escapeHtml(event.action || '-')}</span></td>`;
+                        devicesHtml += `<td><code style="font-size: 0.75rem;">${escapeHtml(event.driver || '-')}</code></td>`;
+                        devicesHtml += `<td><code style="font-size: 0.75rem;">${escapeHtml(event.interface || '-')}</code></td>`;
+                        devicesHtml += '</tr>';
+                    });
+                    
+                    devicesHtml += '</tbody>';
+                    devicesHtml += '</table>';
+                    devicesHtml += '</div>';
+                    devicesHtml += '</div>';
+                }
+                
+                devicesHtml += '</div>';
+                devicesHtml += '</div>';
+            });
+            
+            devicesHtml += '</div>';
+            usbDevicesListEl.innerHTML = devicesHtml;
+
+            // Add search functionality
+            const searchInput = document.getElementById('usb-search-input');
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.toLowerCase();
+                const items = document.querySelectorAll('#usb-devices-list .package-detail-item');
+                let visibleCount = 0;
+
+                items.forEach(item => {
+                    const vid = item.getAttribute('data-vid') || '';
+                    const pid = item.getAttribute('data-pid') || '';
+                    const driver = item.getAttribute('data-driver') || '';
+                    const interfaceName = item.getAttribute('data-interface') || '';
+                    
+                    if (vid.includes(query) || pid.includes(query) || driver.includes(query) || interfaceName.includes(query)) {
                         item.style.display = 'block';
                         visibleCount++;
                     } else {

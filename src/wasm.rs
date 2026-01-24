@@ -661,7 +661,7 @@ impl Adb {
         use bugreport_extractor_library::run_parsers_concurrently;
         use bugreport_extractor_library::parsers::{
             Parser as DataParser, ParserType, HeaderParser, BatteryParser, 
-            PackageParser, ProcessParser, PowerParser, NetworkParser, BluetoothParser
+            PackageParser, ProcessParser, PowerParser, NetworkParser, BluetoothParser, UsbParser
         };
         use bugreport_extractor_library::zip_utils;
         use std::sync::Arc;
@@ -792,6 +792,14 @@ impl Adb {
             log::warn!("  ⚠️ [ANALYZE] Failed to create BluetoothParser");
         }
         
+        log::info!("  🔌 [ANALYZE] Creating UsbParser...");
+        if let Ok(usb_parser) = UsbParser::new() {
+            parsers_to_run.push((ParserType::Usb, Box::new(usb_parser)));
+            log::info!("  ✅ [ANALYZE] UsbParser created");
+        } else {
+            log::warn!("  ⚠️ [ANALYZE] Failed to create UsbParser");
+        }
+        
         log::info!("✅ [ANALYZE] Created {} parsers", parsers_to_run.len());
         
         // Run parsers concurrently
@@ -818,6 +826,7 @@ impl Adb {
             network_stats: Vec<NetworkStats>,
             sockets: Vec<SocketInfo>,
             bluetooth_info: Option<BluetoothInfo>,
+            usb_info: Option<UsbInfo>,
         }
         
         #[derive(Serialize, Clone)]
@@ -1006,6 +1015,42 @@ impl Adb {
             devices: Vec<BluetoothDevice>,
         }
         
+        #[derive(Serialize, Clone)]
+        struct UsbEvent {
+            action: Option<String>,
+            driver: Option<String>,
+            interface: Option<String>,
+            raw_line: Option<String>,
+            timestamp: Option<String>,
+        }
+        
+        #[derive(Serialize, Clone)]
+        struct ConnectedDevice {
+            driver: Option<String>,
+            events: Vec<UsbEvent>,
+            first_seen: Option<String>,
+            interface: Option<String>,
+            last_action: Option<String>,
+            last_seen: Option<String>,
+            pid: Option<String>,
+            vid: Option<String>,
+        }
+        
+        #[derive(Serialize, Clone)]
+        struct UsbPort {
+            connected: Option<bool>,
+            current_mode: Option<String>,
+            first_seen: Option<String>,
+            id: Option<String>,
+            last_state_change: Option<String>,
+        }
+        
+        #[derive(Serialize, Clone)]
+        struct UsbInfo {
+            connected_devices: Vec<ConnectedDevice>,
+            ports: Vec<UsbPort>,
+        }
+        
         // Extract data from results
         log::info!("📤 [ANALYZE] Extracting data from parser results...");
         let mut device_info = None;
@@ -1021,6 +1066,7 @@ impl Adb {
         let mut network_stats: Vec<NetworkStats> = Vec::new();
         let mut sockets: Vec<SocketInfo> = Vec::new();
         let mut bluetooth_info: Option<BluetoothInfo> = None;
+        let mut usb_info: Option<UsbInfo> = None;
         
         for (parser_type, result, duration) in results {
             log::info!("  🔍 [ANALYZE] Processing {:?} result (took {:?})", parser_type, duration);
@@ -1988,6 +2034,78 @@ impl Adb {
                                 log::warn!("    ⚠️ [ANALYZE] Bluetooth result is not an object");
                             }
                         },
+                        ParserType::Usb => {
+                            log::info!("    🔌 [ANALYZE] Extracting USB info...");
+                            if let Some(arr) = json_output.as_array() {
+                                log::info!("    📊 [ANALYZE] USB array has {} entries", arr.len());
+                                
+                                let mut all_connected_devices = Vec::new();
+                                let mut all_ports = Vec::new();
+                                
+                                for entry_json in arr {
+                                    if let Some(entry_obj) = entry_json.as_object() {
+                                        // Extract connected_devices
+                                        if let Some(devices_arr) = entry_obj.get("connected_devices").and_then(|v| v.as_array()) {
+                                            for device_json in devices_arr {
+                                                if let Some(device_obj) = device_json.as_object() {
+                                                    let mut events = Vec::new();
+                                                    if let Some(events_arr) = device_obj.get("events").and_then(|v| v.as_array()) {
+                                                        for event_json in events_arr {
+                                                            if let Some(event_obj) = event_json.as_object() {
+                                                                events.push(UsbEvent {
+                                                                    action: event_obj.get("action").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                                                    driver: event_obj.get("driver").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                                                    interface: event_obj.get("interface").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                                                    raw_line: event_obj.get("raw_line").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                                                    timestamp: event_obj.get("timestamp").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                                                });
+                                                            }
+                                                        }
+                                                    }
+                                                    
+                                                    all_connected_devices.push(ConnectedDevice {
+                                                        driver: device_obj.get("driver").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                                        events,
+                                                        first_seen: device_obj.get("first_seen").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                                        interface: device_obj.get("interface").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                                        last_action: device_obj.get("last_action").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                                        last_seen: device_obj.get("last_seen").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                                        pid: device_obj.get("pid").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                                        vid: device_obj.get("vid").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                                    });
+                                                }
+                                            }
+                                        }
+                                        
+                                        // Extract ports
+                                        if let Some(ports_arr) = entry_obj.get("ports").and_then(|v| v.as_array()) {
+                                            for port_json in ports_arr {
+                                                if let Some(port_obj) = port_json.as_object() {
+                                                    all_ports.push(UsbPort {
+                                                        connected: port_obj.get("connected").and_then(|v| v.as_bool()),
+                                                        current_mode: port_obj.get("current_mode").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                                        first_seen: port_obj.get("first_seen").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                                        id: port_obj.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                                        last_state_change: port_obj.get("last_state_change").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                usb_info = Some(UsbInfo {
+                                    connected_devices: all_connected_devices,
+                                    ports: all_ports,
+                                });
+                                
+                                log::info!("    ✅ [ANALYZE] USB info extracted: {} devices, {} ports", 
+                                    usb_info.as_ref().map(|u| u.connected_devices.len()).unwrap_or(0),
+                                    usb_info.as_ref().map(|u| u.ports.len()).unwrap_or(0));
+                            } else {
+                                log::warn!("    ⚠️ [ANALYZE] USB result is not an array");
+                            }
+                        },
                         _ => {
                             log::info!("    ℹ️ [ANALYZE] Skipping {:?} (not used in summary)", parser_type);
                         }
@@ -2153,6 +2271,7 @@ impl Adb {
             network_stats: network_stats.clone(),
             sockets: sockets.clone(),
             bluetooth_info: bluetooth_info.clone(),
+            usb_info: usb_info.clone(),
         };
         
         log::info!("✅ [ANALYZE] Analysis complete!");
@@ -2166,6 +2285,9 @@ impl Adb {
         log::info!("🔌 [ANALYZE] Sockets: {}", sockets.len());
         if let Some(ref bt_info) = bluetooth_info {
             log::info!("📶 [ANALYZE] Bluetooth devices: {}", bt_info.devices.len());
+        }
+        if let Some(ref usb_info) = usb_info {
+            log::info!("🔌 [ANALYZE] USB devices: {}, ports: {}", usb_info.connected_devices.len(), usb_info.ports.len());
         }
         
         Ok(serde_wasm_bindgen::to_value(&summary)?)
