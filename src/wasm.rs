@@ -659,13 +659,16 @@ impl Adb {
 
     #[wasm_bindgen]
     #[cfg(feature = "bugreport-analysis")]
-    pub async fn analyze_bugreport(&self, data: Vec<u8>) -> Result<JsValue, JsValue> {
+    pub async fn analyze_bugreport(&self, data: Vec<u8>, rules: String) -> Result<JsValue, JsValue> {
         use bugreport_extractor_library::run_parsers_concurrently;
         use bugreport_extractor_library::parsers::{
-            Parser as DataParser, ParserType, HeaderParser, BatteryParser, 
+            Parser as DataParser, ParserType, HeaderParser, BatteryParser,
             PackageParser, ProcessParser, PowerParser, NetworkParser, BluetoothParser, UsbParser
         };
         use bugreport_extractor_library::zip_utils;
+        use bugreport_extractor_library::detection::sigma::extract_all_log_entries;
+        use sigma_zero::engine::SigmaEngine;
+        use sigma_zero::models::SigmaRule;
         use std::sync::Arc;
 
         log::info!("🔍 [ANALYZE] Starting bugreport analysis");
@@ -804,11 +807,82 @@ impl Adb {
         log::info!("✅ [ANALYZE] Created {} parsers", parsers_to_run.len());
         
         // Run parsers concurrently
-        log::info!("🚀 [ANALYZE] Running {} parsers concurrently...", parsers_to_run.len());           
+        log::info!("🚀 [ANALYZE] Running {} parsers concurrently...", parsers_to_run.len());
         let results = run_parsers_concurrently(file_content, parsers_to_run);
 
         log::info!("⏱️ [ANALYZE] Parsers completed");
-        
+
+
+        #[derive(Serialize)]
+        struct SigmaMatchSummary {
+            rule_id: Option<String>,
+            rule_title: String,
+            level: Option<String>,
+            matched_log: serde_json::Value,
+        }
+
+        // Run Sigma rule evaluation if rules were provided
+        let sigma_matches: Option<Vec<SigmaMatchSummary>> = if rules.trim().is_empty() {
+            log::info!("📋 [ANALYZE] No Sigma rules provided, skipping rule evaluation");
+            None
+        } else {
+            log::info!("📋 [ANALYZE] Loading Sigma rules and evaluating log entries...");
+            let mut all_rules: Vec<SigmaRule> = Vec::new();
+            for part in rules.split("\n---\n") {
+                let part = part.trim();
+                if part.is_empty() {
+                    continue;
+                }
+                if let Ok(r) = serde_yaml::from_str::<SigmaRule>(part) {
+                    all_rules.push(r);
+                } else if let Ok(v) = serde_yaml::from_str::<Vec<SigmaRule>>(part) {
+                    all_rules.extend(v);
+                } else {
+                    log::warn!("  ⚠️ [ANALYZE] Failed to parse a Sigma rule YAML document, skipping");
+                }
+            }
+            if all_rules.is_empty() {
+                log::warn!("  ⚠️ [ANALYZE] No valid Sigma rules loaded");
+                None
+            } else {
+                log::info!("  ✅ [ANALYZE] Loaded {} Sigma rules", all_rules.len());
+                let mut engine = SigmaEngine::new(None);
+                engine.rules = all_rules.into_iter().map(Arc::new).collect();
+                let all_entries = extract_all_log_entries(&results);
+                let total_entries: usize = all_entries.iter().map(|t| t.1.len()).sum();
+                log::info!("  📊 [ANALYZE] Evaluating {} log entries from {} parsers", total_entries, all_entries.len());
+                let mut matches_vec: Vec<SigmaMatchSummary> = Vec::new();
+                for (parser_type, log_entries) in all_entries {
+                    for log in log_entries {
+                        for rule_match in engine.evaluate_log_entry(&log) {
+                            // Use &log (the evaluated entry) and ensure we never produce null or {}
+                            let mut matched_log = match serde_json::to_value(&log) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    log::warn!("[ANALYZE] Sigma matched_log serialization failed: {}", e);
+                                    serde_json::json!({
+                                        "source": format!("{:?}", parser_type),
+                                        "_error": "serialization_failed"
+                                    })
+                                }
+                            };
+                            if let Some(obj) = matched_log.as_object_mut() {
+                                obj.entry("source").or_insert_with(|| serde_json::json!(format!("{:?}", parser_type)));
+                            }
+                            matches_vec.push(SigmaMatchSummary {
+                                rule_id: rule_match.rule_id.clone(),
+                                rule_title: rule_match.rule_title.clone(),
+                                level: rule_match.level.clone(),
+                                matched_log,
+                            });
+                        }
+                    }
+                }
+                log::info!("  ✅ [ANALYZE] Sigma evaluation complete: {} matches", matches_vec.len());
+                Some(matches_vec)
+            }
+        };
+
         // Define summary structures
         #[derive(Serialize)]
         struct BugreportSummary {
@@ -818,6 +892,7 @@ impl Adb {
             package_count: usize,
             has_security_analysis: bool,
             analysis_complete: bool,
+            sigma_matches: Option<Vec<SigmaMatchSummary>>,
             packages: Vec<PackageInstallationInfo>,
             processes: Vec<ProcessInfo>,
             battery_apps: Vec<BatteryAppInfo>,
@@ -2255,6 +2330,7 @@ impl Adb {
             package_count: unique_package_count,
             has_security_analysis: false, // Detection would be separate
             analysis_complete: true,
+            sigma_matches,
             packages: packages.clone(),
             processes: processes.clone(),
             battery_apps: battery_apps.clone(),
@@ -2331,20 +2407,21 @@ impl Adb {
     }
 
     /// Analyze a bugreport downloaded from device path
-    /// Downloads the bugreport and analyzes it in one step
+    /// Downloads the bugreport and analyzes it in one step.
+    /// `rules` is YAML string of Sigma rules (can be concatenated with "\n---\n" as document separator).
     #[wasm_bindgen]
     #[cfg(feature = "bugreport-analysis")]
-    pub async fn analyze_bugreport_from_device(&mut self, path: String) -> Result<JsValue, JsValue> {
+    pub async fn analyze_bugreport_from_device(&mut self, path: String, rules: String) -> Result<JsValue, JsValue> {
         log::info!("Downloading and analyzing bugreport from: {}", path);
-        
+
         // Download the bugreport
         let data = self.download_bugreport(path).await?;
-        
+
         // Convert Uint8Array to Vec<u8>
         let vec = js_sys::Uint8Array::new(&data).to_vec();
-        
+
         // Analyze it
-        self.analyze_bugreport(vec).await
+        self.analyze_bugreport(vec, rules).await
     }
 
     /// Get full bugreport data as JSON for inspection
