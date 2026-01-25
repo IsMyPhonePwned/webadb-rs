@@ -855,20 +855,14 @@ impl Adb {
                 for (parser_type, log_entries) in all_entries {
                     for log in log_entries {
                         for rule_match in engine.evaluate_log_entry(&log) {
-                            // Use &log (the evaluated entry) and ensure we never produce null or {}
-                            let mut matched_log = match serde_json::to_value(&log) {
-                                Ok(v) => v,
-                                Err(e) => {
-                                    log::warn!("[ANALYZE] Sigma matched_log serialization failed: {}", e);
-                                    serde_json::json!({
-                                        "source": format!("{:?}", parser_type),
-                                        "_error": "serialization_failed"
-                                    })
-                                }
-                            };
-                            if let Some(obj) = matched_log.as_object_mut() {
-                                obj.entry("source").or_insert_with(|| serde_json::json!(format!("{:?}", parser_type)));
-                            }
+                            // Build matched_log from log.fields to avoid LogEntry/serde roundtrip;
+                            // log.fields is the HashMap that was populated by extract_all_log_entries.
+                            let mut map = log.fields.clone();
+                            map.insert("source".to_string(), serde_json::Value::String(format!("{:?}", parser_type)));
+                            let matched_log = serde_json::to_value(&map).unwrap_or_else(|e| {
+                                log::warn!("[ANALYZE] Sigma matched_log from fields failed: {}", e);
+                                serde_json::json!({"source": format!("{:?}", parser_type), "_error": "from_fields_failed"})
+                            });
                             matches_vec.push(SigmaMatchSummary {
                                 rule_id: rule_match.rule_id.clone(),
                                 rule_title: rule_match.rule_title.clone(),
