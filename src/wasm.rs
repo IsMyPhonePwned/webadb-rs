@@ -5,7 +5,7 @@ use super::auth::{AdbKeyPair, storage};
 use super::client::AdbClient;
 use super::transport::WebUsbTransport;
 #[cfg(feature = "bugreport-analysis")]
-use super::parsers::{extract_kernel_version, extract_manufacturer_model};
+use super::parsers::{extract_kernel_version, extract_manufacturer_model, parse_anr_crash_json};
 
 /// Initialize the WASM module
 #[wasm_bindgen(start)]
@@ -663,7 +663,8 @@ impl Adb {
         use bugreport_extractor_library::run_parsers_concurrently;
         use bugreport_extractor_library::parsers::{
             Parser as DataParser, ParserType, HeaderParser, BatteryParser,
-            PackageParser, ProcessParser, PowerParser, NetworkParser, BluetoothParser, UsbParser
+            PackageParser, ProcessParser, PowerParser, NetworkParser, BluetoothParser, UsbParser,
+            CrashParser,
         };
         use bugreport_extractor_library::zip_utils;
         use bugreport_extractor_library::detection::sigma::extract_all_log_entries;
@@ -803,8 +804,100 @@ impl Adb {
         } else {
             log::warn!("  ⚠️ [ANALYZE] Failed to create UsbParser");
         }
+
+        log::info!("  💥 [ANALYZE] Creating CrashParser...");
+        if let Ok(crash_parser) = CrashParser::new() {
+            parsers_to_run.push((ParserType::Crash, Box::new(crash_parser)));
+            log::info!("  ✅ [ANALYZE] CrashParser created");
+        } else {
+            log::warn!("  ⚠️ [ANALYZE] Failed to create CrashParser");
+        }
         
         log::info!("✅ [ANALYZE] Created {} parsers", parsers_to_run.len());
+
+        // Crash/ANR info structures (parsed from parse_anr_crash_json or CrashParser)
+        #[derive(Serialize, Deserialize, Clone, Default)]
+        struct StackFrameSummary {
+            #[serde(default)]
+            file_loc: Option<String>,
+            #[serde(default)]
+            frame_type: Option<String>,
+            #[serde(default)]
+            line_number: Option<u32>,
+            #[serde(default)]
+            method: Option<String>,
+            // Native frame fields (for native stack traces)
+            #[serde(default)]
+            address: Option<String>,
+            #[serde(default)]
+            details: Option<String>,
+            #[serde(default)]
+            library: Option<String>,
+        }
+        #[derive(Serialize, Deserialize, Clone, Default)]
+        struct ThreadSummary {
+            #[serde(default)]
+            name: Option<String>,
+            #[serde(default)]
+            priority: Option<u32>,
+            #[serde(default)]
+            tid: Option<u64>,
+            #[serde(default)]
+            status: Option<String>,
+            #[serde(default)]
+            is_daemon: Option<bool>,
+            #[serde(default)]
+            properties: Option<std::collections::HashMap<String, String>>,
+            #[serde(default)]
+            stack_trace: Vec<StackFrameSummary>,
+        }
+        #[derive(Serialize, Deserialize, Clone, Default)]
+        struct AnrTraceSummary {
+            #[serde(default)]
+            subject: Option<String>,
+            #[serde(default)]
+            header: Option<std::collections::HashMap<String, serde_json::Value>>,
+            #[serde(default)]
+            process_info: Option<std::collections::HashMap<String, serde_json::Value>>,
+            #[serde(default)]
+            threads: Vec<ThreadSummary>,
+        }
+        #[derive(Serialize, Deserialize, Clone, Default)]
+        struct AnrFileEntry {
+            #[serde(default)]
+            filename: Option<String>,
+            #[serde(default)]
+            group: Option<String>,
+            #[serde(default)]
+            owner: Option<String>,
+            #[serde(default)]
+            permissions: Option<String>,
+            #[serde(default)]
+            size: Option<u64>,
+            #[serde(default)]
+            timestamp: Option<String>,
+        }
+        #[derive(Serialize, Deserialize, Clone, Default)]
+        struct AnrFilesSummary {
+            #[serde(default)]
+            files: Vec<AnrFileEntry>,
+            #[serde(default)]
+            total_size: Option<u64>,
+        }
+        #[derive(Serialize, Deserialize, Clone, Default)]
+        struct CrashInfoSummary {
+            #[serde(default)]
+            anr_files: Option<AnrFilesSummary>,
+            #[serde(default)]
+            anr_trace: Option<AnrTraceSummary>,
+            // Tombstones is an array of tombstone objects (preserved as Value since structure may vary)
+            #[serde(default)]
+            tombstones: Option<Vec<serde_json::Value>>,
+        }
+
+        // Try to parse as ANR/crash JSON first (in case the input is a JSON file from crash tools)
+        let mut crash_info: Option<CrashInfoSummary> = parse_anr_crash_json(file_content.as_ref())
+            .and_then(|v| serde_json::from_value::<CrashInfoSummary>(v).ok());
         
         // Run parsers concurrently
         log::info!("🚀 [ANALYZE] Running {} parsers concurrently...", parsers_to_run.len());
@@ -897,6 +990,7 @@ impl Adb {
             sockets: Vec<SocketInfo>,
             bluetooth_info: Option<BluetoothInfo>,
             usb_info: Option<UsbInfo>,
+            crash_info: Option<CrashInfoSummary>,
         }
         
         #[derive(Serialize, Clone)]
@@ -2096,6 +2190,11 @@ impl Adb {
                                 log::warn!("    ⚠️ [ANALYZE] Bluetooth result is not an object");
                             }
                         },
+                        ParserType::Crash => {
+                            if crash_info.is_none() {
+                                crash_info = serde_json::from_value::<CrashInfoSummary>(json_output).ok();
+                            }
+                        },
                         ParserType::Usb => {
                             log::info!("    🔌 [ANALYZE] Extracting USB info...");
                             if let Some(arr) = json_output.as_array() {
@@ -2335,6 +2434,7 @@ impl Adb {
             sockets: sockets.clone(),
             bluetooth_info: bluetooth_info.clone(),
             usb_info: usb_info.clone(),
+            crash_info: crash_info.clone(),
         };
         
         log::info!("✅ [ANALYZE] Analysis complete!");

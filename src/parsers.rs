@@ -21,6 +21,25 @@ pub fn extract_kernel_version(kernel_str: &str) -> String {
     }
 }
 
+/// Parse ANR/crash JSON (anr_files, anr_trace).
+/// Returns `Some(Value)` if input is valid JSON with `anr_files` or `anr_trace`, else `None`.
+pub fn parse_anr_crash_json(data: &[u8]) -> Option<serde_json::Value> {
+    use serde_json::Value;
+    let v: Value = serde_json::from_slice(data).ok()?;
+    let obj = v.as_object()?;
+    if !obj.contains_key("anr_files") && !obj.contains_key("anr_trace") {
+        return None;
+    }
+    let mut out = serde_json::Map::new();
+    if obj.contains_key("anr_files") {
+        out.insert("anr_files".to_string(), obj.get("anr_files")?.clone());
+    }
+    if obj.contains_key("anr_trace") {
+        out.insert("anr_trace".to_string(), obj.get("anr_trace")?.clone());
+    }
+    Some(Value::Object(out))
+}
+
 /// Extract manufacturer and model from build fingerprint
 /// Format: 'samsung/a34xeea/a34x:15/AP3A.240905.015.A2/A346BXXSBDYI1:user/release-keys'
 /// Returns: (manufacturer, model)
