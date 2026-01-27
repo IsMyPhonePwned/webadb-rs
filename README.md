@@ -41,12 +41,10 @@ A pure Rust implementation of the Android Debug Bridge (ADB) protocol compiled t
 # Clone the repository
 cd rust-webadb
 
-# Build for release
-./clean-build.sh
+# install wasm-pack
+curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-# Or manually:
-rm -rf target/ pkg/
-wasm-pack build --target web --release
+# Build the code
 wasm-pack build --dev --target web --features bugreport-analysis 
 ```
 
@@ -57,8 +55,6 @@ The compiled WASM module will be in the `pkg/` directory.
 1. **Start a local web server:**
    ```bash
    python3 -m http.server 8000
-   # or
-   npx serve
    ```
 
 2. **Open in browser:**
