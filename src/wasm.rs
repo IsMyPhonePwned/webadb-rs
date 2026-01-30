@@ -1058,6 +1058,11 @@ impl Adb {
             data_dir: Option<String>,
             enabled: Option<u32>,
             installed: Option<bool>,
+            stopped: Option<bool>,
+            suspended: Option<bool>,
+            hidden: Option<bool>,
+            install_reason: Option<u32>,
+            permissions: Option<serde_json::Value>,
         }
         
         #[derive(Serialize, Clone)]
@@ -1070,13 +1075,21 @@ impl Adb {
             min_sdk: Option<u32>,
             code_path: Option<String>,
             resource_path: Option<String>,
+            data_dir: Option<String>,
             flags: Option<String>,
             pkg_flags: Option<String>,
+            private_flags: Option<String>,
             primary_cpu_abi: Option<String>,
             installer_package_name: Option<String>,
+            initiating_package_name: Option<String>,
+            originating_package_name: Option<String>,
             last_update_time: Option<String>,
             time_stamp: Option<String>,
             category: Option<String>,
+            signatures: Option<String>,
+            apk_signing_version: Option<String>,
+            package_source: Option<String>,
+            permissions: Option<serde_json::Value>,
             install_logs: Vec<serde_json::Value>,
             user_count: usize,
             users: Vec<PackageUserInfo>,
@@ -1637,11 +1650,21 @@ impl Adb {
                                                 .and_then(|v| v.as_str())
                                                 .map(|s| s.to_string());
                                             
+                                            let data_dir = pkg_obj.get("dataDir")
+                                                .and_then(|v| v.as_str())
+                                                .filter(|s| s != &"null")
+                                                .map(|s| s.to_string());
+                                            
                                             let flags = pkg_obj.get("flags")
                                                 .and_then(|v| v.as_str())
                                                 .map(|s| s.to_string());
                                             
                                             let pkg_flags = pkg_obj.get("pkgFlags")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string());
+                                            
+                                            let private_flags = pkg_obj.get("privateFlags")
+                                                .or_else(|| pkg_obj.get("privatePkgFlags"))
                                                 .and_then(|v| v.as_str())
                                                 .map(|s| s.to_string());
                                             
@@ -1651,6 +1674,16 @@ impl Adb {
                                                 .map(|s| s.to_string());
                                             
                                             let installer_package_name = pkg_obj.get("installerPackageName")
+                                                .and_then(|v| v.as_str())
+                                                .filter(|s| s != &"null")
+                                                .map(|s| s.to_string());
+                                            
+                                            let initiating_package_name = pkg_obj.get("initiatingPackageName")
+                                                .and_then(|v| v.as_str())
+                                                .filter(|s| s != &"null")
+                                                .map(|s| s.to_string());
+                                            
+                                            let originating_package_name = pkg_obj.get("originatingPackageName")
                                                 .and_then(|v| v.as_str())
                                                 .filter(|s| s != &"null")
                                                 .map(|s| s.to_string());
@@ -1666,6 +1699,25 @@ impl Adb {
                                             let category = pkg_obj.get("category")
                                                 .and_then(|v| v.as_str())
                                                 .map(|s| s.to_string());
+                                            
+                                            let signatures = pkg_obj.get("signatures")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| s.to_string());
+                                            
+                                            let apk_signing_version = pkg_obj.get("apkSigningVersion")
+                                                .and_then(|v| {
+                                                    v.as_str().map(|s| s.to_string())
+                                                        .or_else(|| v.as_u64().map(|n| n.to_string()))
+                                                });
+                                            
+                                            let package_source = pkg_obj.get("packageSource")
+                                                .and_then(|v| {
+                                                    v.as_str().map(|s| s.to_string())
+                                                        .or_else(|| v.as_u64().map(|n| n.to_string()))
+                                                });
+                                            
+                                            // Extract package-level permissions
+                                            let permissions = pkg_obj.get("permissions").cloned();
                                             
                                             // Extract install_logs array
                                             let install_logs = pkg_obj.get("install_logs")
@@ -1702,6 +1754,21 @@ impl Adb {
                                                         let installed = user_obj.get("installed")
                                                             .and_then(|v| v.as_bool());
                                                         
+                                                        let stopped = user_obj.get("stopped")
+                                                            .and_then(|v| v.as_bool());
+                                                        
+                                                        let suspended = user_obj.get("suspended")
+                                                            .and_then(|v| v.as_bool());
+                                                        
+                                                        let hidden = user_obj.get("hidden")
+                                                            .and_then(|v| v.as_bool());
+                                                        
+                                                        let install_reason = user_obj.get("installReason")
+                                                            .and_then(|v| v.as_u64())
+                                                            .map(|v| v as u32);
+                                                        
+                                                        let permissions = user_obj.get("permissions").cloned();
+                                                        
                                                         users_info.push(PackageUserInfo {
                                                             user_id,
                                                             first_install_time,
@@ -1709,6 +1776,11 @@ impl Adb {
                                                             data_dir,
                                                             enabled,
                                                             installed,
+                                                            stopped,
+                                                            suspended,
+                                                            hidden,
+                                                            install_reason,
+                                                            permissions,
                                                         });
                                                     }
                                                 }
@@ -1725,13 +1797,21 @@ impl Adb {
                                                 min_sdk,
                                                 code_path,
                                                 resource_path,
+                                                data_dir,
                                                 flags,
                                                 pkg_flags,
+                                                private_flags,
                                                 primary_cpu_abi,
                                                 installer_package_name,
+                                                initiating_package_name,
+                                                originating_package_name,
                                                 last_update_time,
                                                 time_stamp,
                                                 category,
+                                                signatures,
+                                                apk_signing_version,
+                                                package_source,
+                                                permissions,
                                                 install_logs,
                                                 user_count,
                                                 users: users_info,
