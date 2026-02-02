@@ -940,7 +940,10 @@ impl Adb {
             } else {
                 log::info!("  ✅ [ANALYZE] Loaded {} Sigma rules", all_rules.len());
                 let mut engine = SigmaEngine::new(None);
-                engine.rules = all_rules.into_iter().map(Arc::new).collect();
+                engine.load_rules_from_rules(all_rules).map_err(|e| {
+                    log::warn!("  ⚠️ [ANALYZE] Sigma engine load_rules_from_rules failed: {}", e);
+                    JsValue::from_str(&format!("Sigma engine failed: {}", e))
+                })?;
                 let all_entries = extract_all_log_entries(&results);
                 let total_entries: usize = all_entries.iter().map(|t| t.1.len()).sum();
                 log::info!("  📊 [ANALYZE] Evaluating {} log entries from {} parsers", total_entries, all_entries.len());
